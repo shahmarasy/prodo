@@ -15,7 +15,6 @@ export declare function finishInitInteractive(summary: {
     projectRoot: string;
     settingsPath: string;
     ai?: SupportedAi;
-    script: "sh" | "ps";
     lang: "tr" | "en";
 }): Promise<void>;
 export {};

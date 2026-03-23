@@ -77,6 +77,11 @@ function toTomlPrompt(body: string, frontmatter: Record<string, unknown>, argsPl
   return `description = "${description.replace(/"/g, '\\"')}"
 
 prompt = """
+Important execution rule:
+- This is an agent slash command, not a shell command.
+- Do NOT run \`prodo-normalize\`, \`prodo-prd\`, or \`prodo ...\` in shell.
+- Execute the workflow directly using workspace files.
+
 ${promptBody}
 """`;
 }

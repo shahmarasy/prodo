@@ -124,7 +124,6 @@ async function runCli(options = {}) {
                 projectRoot,
                 settingsPath: result.settingsPath,
                 ai: selectedAi,
-                script: selected.script,
                 lang: selected.lang
             });
             return;

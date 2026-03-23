@@ -140,19 +140,6 @@ export async function gatherInitSelections(options: GatherInitUiOptions): Promis
     throw new UserError("Initialization cancelled.");
   }
 
-  const script = await clack.select({
-    message: "Select script type",
-    initialValue: fallbackScript,
-    options: [
-      { value: "sh", label: "sh", hint: "Command profile (metadata)" },
-      { value: "ps", label: "ps", hint: "Command profile (metadata)" }
-    ]
-  });
-  if (clack.isCancel(script)) {
-    clack.cancel("Initialization cancelled.");
-    throw new UserError("Initialization cancelled.");
-  }
-
   const lang = await clack.select({
     message: "Select language",
     initialValue: defaultLang,
@@ -173,7 +160,7 @@ export async function gatherInitSelections(options: GatherInitUiOptions): Promis
 
   return {
     ai: selectedAi,
-    script,
+    script: fallbackScript,
     lang,
     interactive: true
   };
@@ -183,11 +170,10 @@ export function finishInitInteractive(summary: {
   projectRoot: string;
   settingsPath: string;
   ai?: SupportedAi;
-  script: "sh" | "ps";
   lang: "tr" | "en";
 }): Promise<void> {
   const aiText = summary.ai ?? "none";
   return loadClack().then((clack) => clack.outro(
-    `Scaffold complete.\nAI: ${aiText}\nScript: ${summary.script}\nLanguage: ${summary.lang}\nSettings: ${summary.settingsPath}\nNext: edit brief.md`
+    `Scaffold complete.\nAI: ${aiText}\nLanguage: ${summary.lang}\nSettings: ${summary.settingsPath}\nNext: edit brief.md`
   ));
 }

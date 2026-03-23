@@ -141,7 +141,6 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
           projectRoot,
           settingsPath: result.settingsPath,
           ai: selectedAi,
-          script: selected.script,
           lang: selected.lang
         });
         return;

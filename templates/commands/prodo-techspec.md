@@ -10,7 +10,7 @@ $ARGUMENTS
 
 Execution policy:
 - Execute-first, diagnose-second.
-- Do not run shell/CLI commands from inside the agent.
+- Do not run shell/CLI commands from inside the agent.`n- Never run `prodo-techspec`, `prodo techspec`, or `prodo ...` in shell.
 - Input files are read-only; never modify or rewrite `brief.md`.
 
 ## Execution

@@ -53,17 +53,52 @@ async function loadArtifactDoc(filePath) {
         body: parsed.content
     };
 }
+function languageProbe(body) {
+    const stripped = body
+        .replace(/```[\s\S]*?```/g, " ")
+        .replace(/^\s*#{1,6}\s+.*$/gm, " ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\|/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+    return ` ${stripped} `;
+}
 function hasEnglishLeak(body) {
-    const englishMarkers = [" the ", " and ", " with ", " user ", " should ", " must ", " requirement ", " flow "];
-    const normalized = ` ${body.toLowerCase().replace(/\s+/g, " ")} `;
+    const englishMarkers = [" the ", " and ", " with ", " user ", " should ", " must ", " requirement ", " flow ", " error ", " success "];
+    const normalized = languageProbe(body);
     return englishMarkers.filter((m) => normalized.includes(m)).length >= 2;
+}
+function hasTurkishLeak(body) {
+    const turkishMarkers = [
+        " ve ",
+        " ile ",
+        " kullanici ",
+        " kullanıcı ",
+        " akis ",
+        " akış ",
+        " hata ",
+        " basari ",
+        " başarı ",
+        " ekran ",
+        " islem ",
+        " işlem ",
+        " gerekli "
+    ];
+    const normalized = languageProbe(body);
+    return turkishMarkers.filter((m) => normalized.includes(m)).length >= 2;
 }
 function enforceLanguage(body, lang, artifactType) {
     const normalized = (lang || "en").toLowerCase();
-    if (!normalized.startsWith("tr"))
-        return;
-    if (hasEnglishLeak(body)) {
+    if (normalized.startsWith("tr")) {
+        if (!hasEnglishLeak(body))
+            return;
         throw new errors_1.UserError(`Language enforcement failed for ${artifactType}: output contains English fragments while language is Turkish.`);
+    }
+    if (normalized.startsWith("en")) {
+        if (!hasTurkishLeak(body))
+            return;
+        throw new errors_1.UserError(`Language enforcement failed for ${artifactType}: output contains Turkish fragments while language is English.`);
     }
 }
 function toSlug(value) {
@@ -387,6 +422,7 @@ async function writeWireframeScreens(targetDir, baseName, normalized, coverage, 
                 return "[ LOGO ]";
             return token;
         });
+        enforceLanguage(html, lang, "wireframe");
         await promises_1.default.writeFile(htmlPath, html, "utf8");
         const defaultMap = {
             purpose: [`- [${screen.id}] ${screen.text}`],
@@ -437,6 +473,7 @@ async function writeWireframeScreens(targetDir, baseName, normalized, coverage, 
             mdLines.push("");
         }
         const mdBody = mdLines.join("\n").trim();
+        enforceLanguage(mdBody, lang, "wireframe");
         await promises_1.default.writeFile(mdPath, `${mdBody}\n`, "utf8");
         if (!primaryMdPath)
             primaryMdPath = mdPath;
@@ -519,6 +556,9 @@ async function generateArtifact(options) {
         workflowMermaidBody = renderWorkflowMermaidTemplate(companionTemplate.content, normalizedBrief, contractCoverage, settings.lang).trim();
     }
     enforceLanguage(generatedBody, settings.lang, artifactType);
+    if (artifactType === "workflow" && workflowMermaidBody) {
+        enforceLanguage(workflowMermaidBody, settings.lang, artifactType);
+    }
     const uncovered = missingCoverage(def.required_contracts, normalizedBrief, contractCoverage);
     if (uncovered.length > 0) {
         const lines = uncovered

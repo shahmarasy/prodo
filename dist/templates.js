@@ -362,6 +362,7 @@ Execution policy:
 - Execute-first, diagnose-second.
 - Perform only minimal prerequisite checks before execution.
 - Do not run shell commands or CLI commands from inside the agent.
+- Never run \`prodo-${command.cliSubcommand}\`, \`prodo ${command.cliSubcommand}\`, or \`prodo ...\` in shell.
 - Do not inspect hooks or internals unless command execution fails.
 - Input files are read-only; never modify or rewrite \`brief.md\`.
 

@@ -120,8 +120,19 @@ function buildArtifactBody(schemaHint: ProviderSchemaHint, inputContext: Record<
   const lang = typeof inputContext.outputLanguage === "string" ? inputContext.outputLanguage.toLowerCase() : "en";
   const items = normalizeSectionItems(inputContext);
   const coverage = coverageItems(schemaHint, inputContext);
+  const localizedItems =
+    lang === "tr" ? items.map((_, index) => `Gereksinim maddesi ${index + 1}`) : items;
+  const localizedCoverage =
+    lang === "tr"
+      ? coverage.map((item, index) => ({
+          id: item.id,
+          text: `Kontrat kapsami ${index + 1}`
+        }))
+      : coverage;
   const fallback = lang === "tr" ? "Detay daha sonra netlestirilecek." : "To be refined.";
-  const sections = schemaHint.requiredHeadings.map((heading) => headingBlock(heading, items, fallback, coverage));
+  const sections = schemaHint.requiredHeadings.map((heading) =>
+    headingBlock(heading, localizedItems, fallback, localizedCoverage)
+  );
   const title =
     lang === "tr"
       ? `# ${productName} icin ${schemaHint.artifactType.toUpperCase()}`

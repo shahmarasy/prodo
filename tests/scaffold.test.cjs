@@ -116,6 +116,25 @@ test("init auto-updates unmanaged-free files when core assets change", async (t)
   assert.match(generated, /Updated template body/);
 });
 
+test("init refreshes legacy internal-runtime command templates", async (t) => {
+  const cwd = await makeTempDir();
+  t.after(async () => fs.rm(cwd, { recursive: true, force: true }));
+
+  assert.equal(await runCli({ cwd, argv: ["node", "prodo", "init"], log: () => {}, error: () => {} }), 0);
+  const commandPath = path.join(cwd, ".prodo", "commands", "prodo-prd.md");
+  await fs.writeFile(
+    commandPath,
+    `---\ndescription: Generate PRD artifact.\nrun:\n  action: prd\n  mode: internal-runtime\n---\n\nlegacy body\n`,
+    "utf8"
+  );
+
+  assert.equal(await runCli({ cwd, argv: ["node", "prodo", "init"], log: () => {}, error: () => {} }), 0);
+  const refreshed = await fs.readFile(commandPath, "utf8");
+  assert.doesNotMatch(refreshed, /run:\s*\n/);
+  assert.doesNotMatch(refreshed, /action:\s*prd/);
+  assert.doesNotMatch(refreshed, /mode:\s*internal-runtime/);
+});
+
 test("init recovers from corrupt registry and rewrites valid state", async (t) => {
   const cwd = await makeTempDir();
   t.after(async () => fs.rm(cwd, { recursive: true, force: true }));

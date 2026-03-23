@@ -29,3 +29,4 @@ temp/
 *.tmp
 *.swp
 *.swo
+/.idea

@@ -123,6 +123,26 @@ async function copyDirIfMissing(sourceDir, targetDir, copiedAssets) {
         });
     }
 }
+async function refreshLegacyCommandTemplates(sourceDir, targetDir) {
+    if (!(await (0, utils_1.fileExists)(sourceDir)) || !(await (0, utils_1.fileExists)(targetDir)))
+        return;
+    const entries = await promises_1.default.readdir(sourceDir, { withFileTypes: true });
+    for (const entry of entries) {
+        if (!entry.isFile())
+            continue;
+        if (!entry.name.startsWith("prodo-") || !entry.name.endsWith(".md"))
+            continue;
+        const src = node_path_1.default.join(sourceDir, entry.name);
+        const dst = node_path_1.default.join(targetDir, entry.name);
+        if (!(await (0, utils_1.fileExists)(dst)))
+            continue;
+        const existing = await promises_1.default.readFile(dst, "utf8");
+        const isLegacyRunMode = /run:\s*\n\s*action:\s*[^\n]+/m.test(existing) || /mode:\s*internal-runtime/m.test(existing);
+        if (!isLegacyRunMode)
+            continue;
+        await promises_1.default.copyFile(src, dst);
+    }
+}
 async function buildAssetManifest(pairs, previous, backup) {
     const previousByTarget = new Map();
     for (const item of previous?.assets ?? []) {
@@ -264,6 +284,7 @@ async function runInit(cwd, options) {
         await writeFileIfMissing(node_path_1.default.join(root, "templates", templateFileName(artifact.name)), `${(0, templates_1.artifactTemplateTemplate)(artifact.name, options?.lang ?? "en")}\n`);
     }
     await copyDirIfMissing(node_path_1.default.join(projectScaffoldTemplates, "commands"), node_path_1.default.join(root, "commands"), copiedAssets);
+    await refreshLegacyCommandTemplates(node_path_1.default.join(projectScaffoldTemplates, "commands"), node_path_1.default.join(root, "commands"));
     for (const command of workflowCommands) {
         await writeFileIfMissing(node_path_1.default.join(root, "commands", `${command.name}.md`), `${(0, templates_1.commandTemplate)(command)}\n`);
     }

@@ -193,6 +193,17 @@ test("workflow generation fails when workflow template has no headings", async (
   assert.match(logs.join("\n"), /workflow template has no extractable headings/i);
 });
 
+test("workflow generation fails when workflow companion template is missing", async (t) => {
+  const cwd = await makeTempDir();
+  t.after(async () => fs.rm(cwd, { recursive: true, force: true }));
+  const logs = [];
+  await runCli({ cwd, argv: ["node", "prodo", "init"], log: () => {}, error: () => {} });
+  await fs.rm(path.join(cwd, ".prodo", "templates", "workflow.mmd"), { force: true });
+  const code = await runCli({ cwd, argv: ["node", "prodo", "workflow"], log: (m) => logs.push(m), error: (m) => logs.push(m) });
+  assert.equal(code, 1);
+  assert.match(logs.join("\n"), /Missing workflow companion template/i);
+});
+
 test("workflow derived context survives renamed template headings", async (t) => {
   const cwd = await makeTempDir();
   t.after(async () => fs.rm(cwd, { recursive: true, force: true }));
@@ -256,6 +267,34 @@ test("wireframe output is paired markdown + html screens", async (t) => {
   assert.ok(htmlFiles.length >= 2);
   const firstMdBase = path.parse(mdFiles[0]).name;
   assert.ok(htmlFiles.includes(`${firstMdBase}.html`));
+});
+
+test("wireframe html output follows wireframe.html template", async (t) => {
+  const cwd = await makeTempDir();
+  t.after(async () => fs.rm(cwd, { recursive: true, force: true }));
+  await runCli({ cwd, argv: ["node", "prodo", "init"], log: () => {}, error: () => {} });
+  await fs.writeFile(
+    path.join(cwd, ".prodo", "templates", "wireframe.html"),
+    "<!doctype html><html><body><main>CUSTOM-WIREFRAME {{Screen Title}}</main></body></html>\n",
+    "utf8"
+  );
+  assert.equal(await runCli({ cwd, argv: ["node", "prodo", "wireframe"], log: () => {}, error: () => {} }), 0);
+  const wireframeDir = path.join(cwd, "product-docs", "wireframes");
+  const htmlFile = (await fs.readdir(wireframeDir)).find((name) => name.endsWith(".html"));
+  assert.ok(htmlFile);
+  const html = await fs.readFile(path.join(wireframeDir, htmlFile), "utf8");
+  assert.match(html, /CUSTOM-WIREFRAME/i);
+});
+
+test("wireframe generation fails when wireframe companion template is missing", async (t) => {
+  const cwd = await makeTempDir();
+  t.after(async () => fs.rm(cwd, { recursive: true, force: true }));
+  const logs = [];
+  await runCli({ cwd, argv: ["node", "prodo", "init"], log: () => {}, error: () => {} });
+  await fs.rm(path.join(cwd, ".prodo", "templates", "wireframe.html"), { force: true });
+  const code = await runCli({ cwd, argv: ["node", "prodo", "wireframe"], log: (m) => logs.push(m), error: (m) => logs.push(m) });
+  assert.equal(code, 1);
+  assert.match(logs.join("\n"), /Missing wireframe companion template/i);
 });
 
 test("validate fails on mixed language when project language is Turkish", async (t) => {
@@ -322,6 +361,23 @@ test("doctor command prints grouped environment report", async (t) => {
   assert.match(out, /Core/);
   assert.match(out, /AI \/ Agents/);
   assert.match(out, /Dev Tools/);
+});
+
+test("cli help emphasizes only primary commands", async (t) => {
+  const cwd = await makeTempDir();
+  t.after(async () => fs.rm(cwd, { recursive: true, force: true }));
+  const logs = [];
+  const code = await runCli({ cwd, argv: ["node", "prodo", "--help"], log: (m) => logs.push(m), error: (m) => logs.push(m) });
+  assert.equal(code, 0);
+  const out = logs.join("\n");
+  assert.match(out, /init/);
+  assert.match(out, /generate/);
+  assert.match(out, /doctor/);
+  assert.doesNotMatch(out, /\bprd\b/);
+  assert.doesNotMatch(out, /\bworkflow\b/);
+  assert.doesNotMatch(out, /\bwireframe\b/);
+  assert.doesNotMatch(out, /\bstories\b/);
+  assert.doesNotMatch(out, /\btechspec\b/);
 });
 
 test("validate --report fails outside product-docs", async (t) => {

@@ -1,8 +1,5 @@
 ---
 description: Validate artifact set.
-run:
-  action: validate
-  mode: internal-runtime
 ---
 
 ## User Input
@@ -13,12 +10,14 @@ $ARGUMENTS
 
 Execution policy:
 - Execute-first, diagnose-second.
-- Use Prodo internal runtime process; do not invoke CLI or shell scripts.
+- Do not run shell/CLI commands from inside the agent.
 - Input files are read-only; never modify or rewrite `brief.md`.
 
 ## Execution
 
 1. Verify minimal prerequisites (`.prodo/`, `brief.md`, normalized brief).
-2. Execute validation process with provided arguments.
-3. Confirm validation report exists and status is clear.
-4. Diagnose internals only if command fails.
+2. Validate latest artifacts under `product-docs/` for schema + cross-artifact consistency.
+3. Confirm validation report exists under `product-docs/reports/` and status is clear.
+4. Confirm `brief.md` content did not change.
+5. Do not create manual fallback files under `.prodo/`.
+6. Diagnose internals only if command fails.

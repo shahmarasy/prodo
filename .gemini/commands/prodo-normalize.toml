@@ -1,11 +1,10 @@
----
-description: Normalize product brief.
----
+description = "Normalize product brief."
 
+prompt = """
 ## User Input
 
 ```text
-$ARGUMENTS
+{{args}}
 ```
 
 Execution policy:
@@ -21,3 +20,5 @@ Execution policy:
 4. Confirm `brief.md` content did not change.
 5. Do not create any manual files under `.prodo/` except expected runtime outputs.
 6. Diagnose internals only if command fails.
+
+"""

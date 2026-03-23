@@ -1,11 +1,10 @@
----
-description: Generate technical specification artifact.
----
+description = "Generate wireframe artifacts."
 
+prompt = """
 ## User Input
 
 ```text
-$ARGUMENTS
+{{args}}
 ```
 
 Execution policy:
@@ -16,8 +15,10 @@ Execution policy:
 ## Execution
 
 1. Verify minimal prerequisites (`.prodo/`, `brief.md`, normalized brief).
-2. Use normalized brief + latest upstream artifacts and apply techspec template from `.prodo/templates/techspec.md`.
-3. Confirm techspec output was created under `product-docs/techspec/`.
+2. Use normalized brief + latest PRD/workflow and apply wireframe templates (`.prodo/templates/wireframe.md` and `.prodo/templates/wireframe.html`).
+3. Confirm paired outputs exist under `product-docs/wireframes/` (`.md` + `.html`).
 4. Confirm `brief.md` content did not change.
 5. Do not create manual fallback files under `.prodo/`.
 6. Diagnose internals only if command fails.
+
+"""

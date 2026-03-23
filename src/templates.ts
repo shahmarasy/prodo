@@ -360,9 +360,6 @@ handoffs:
     agent: prodo-next
     prompt: Continue with the next Prodo command in sequence.
     send: true
-run:
-  action: ${command.cliSubcommand}
-  mode: internal-runtime
 ---
 
 ## User Input
@@ -374,6 +371,7 @@ $ARGUMENTS
 Execution policy:
 - Execute-first, diagnose-second.
 - Perform only minimal prerequisite checks before execution.
+- Do not run shell commands or CLI commands from inside the agent.
 - Do not inspect hooks or internals unless command execution fails.
 - Input files are read-only; never modify or rewrite \`brief.md\`.
 
@@ -385,12 +383,14 @@ Execution policy:
 - Confirm output location is writable.
 
 2. Execute immediately:
-- Execute the \`${command.cliSubcommand}\` process through Prodo internal runtime.
+- Execute the \`${command.cliSubcommand}\` process directly using workspace files and Prodo rules.
 - Keep narration short and action-oriented.
 
 3. Verify result:
-- Confirm expected output file(s) were created/updated.
+- Confirm expected output file(s) were created/updated under \`product-docs/\` (or \`.prodo/briefs\` for normalize).
 - Confirm command success state (exit code or validation status).
+- Confirm \`brief.md\` hash/content did not change.
+- Do NOT create manual fallback files under \`.prodo/artifact\` or any ad-hoc folder.
 
 4. Diagnose only on failure:
 - Inspect \`.prodo/hooks.yml\` only after execution failure.

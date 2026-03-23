@@ -56,34 +56,19 @@ function renderFrontmatter(frontmatter) {
         return "";
     return `---\n${js_yaml_1.default.dump(frontmatter)}---\n`;
 }
-function resolveScriptBlock(frontmatter, argsPlaceholder) {
-    const run = frontmatter.run;
-    const runAction = typeof run?.action === "string" ? run.action.trim() : "";
-    const runMode = typeof run?.mode === "string" ? run.mode.trim() : "";
-    if (runAction) {
-        const modeSuffix = runMode ? ` (${runMode})` : "";
-        return `- Internal action: ${runAction}${modeSuffix}`;
-    }
-    const runCommand = typeof run?.command === "string" ? run.command.replace("{ARGS}", argsPlaceholder) : "";
-    if (runCommand) {
-        return `- Command: ${runCommand}`;
-    }
-    const scripts = frontmatter.scripts;
-    const sh = typeof scripts?.sh === "string" ? scripts.sh.replace("{ARGS}", argsPlaceholder) : "";
-    const ps = typeof scripts?.ps === "string" ? scripts.ps.replace("{ARGS}", argsPlaceholder) : "";
-    return [`- Bash: ${sh}`, `- PowerShell: ${ps}`].filter((line) => line.length > 8).join("\n");
+function sanitizeFrontmatter(frontmatter) {
+    const out = { ...frontmatter };
+    delete out.run;
+    delete out.scripts;
+    return out;
 }
 function toTomlPrompt(body, frontmatter, argsPlaceholder) {
     const description = String(frontmatter.description ?? "Prodo command");
-    const scriptsBlock = resolveScriptBlock(frontmatter, argsPlaceholder);
     const promptBody = body.replaceAll("$ARGUMENTS", argsPlaceholder);
     return `description = "${description.replace(/"/g, '\\"')}"
 
 prompt = """
 ${promptBody}
-
-Script options:
-${scriptsBlock}
 """`;
 }
 function toSkill(name, body, frontmatter) {
@@ -151,7 +136,7 @@ async function installAgentCommands(projectRoot, ai) {
         }
         const outPath = node_path_1.default.join(target, `${commandName}${cfg.extension}`);
         const replacedBody = parsed.body.replaceAll("$ARGUMENTS", cfg.argsPlaceholder);
-        await promises_1.default.writeFile(outPath, `${renderFrontmatter(parsed.frontmatter)}\n${replacedBody}`, "utf8");
+        await promises_1.default.writeFile(outPath, `${renderFrontmatter(sanitizeFrontmatter(parsed.frontmatter))}\n${replacedBody}`, "utf8");
         written.push(outPath);
     }
     return written;

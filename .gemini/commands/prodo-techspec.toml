@@ -1,11 +1,10 @@
----
-description: Generate technical specification artifact.
----
+description = "Generate technical specification artifact."
 
+prompt = """
 ## User Input
 
 ```text
-$ARGUMENTS
+{{args}}
 ```
 
 Execution policy:
@@ -21,3 +20,5 @@ Execution policy:
 4. Confirm `brief.md` content did not change.
 5. Do not create manual fallback files under `.prodo/`.
 6. Diagnose internals only if command fails.
+
+"""

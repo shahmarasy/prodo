@@ -154,6 +154,22 @@ async function copyDirIfMissing(
   }
 }
 
+async function refreshLegacyCommandTemplates(sourceDir: string, targetDir: string): Promise<void> {
+  if (!(await fileExists(sourceDir)) || !(await fileExists(targetDir))) return;
+  const entries = await fs.readdir(sourceDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    if (!entry.name.startsWith("prodo-") || !entry.name.endsWith(".md")) continue;
+    const src = path.join(sourceDir, entry.name);
+    const dst = path.join(targetDir, entry.name);
+    if (!(await fileExists(dst))) continue;
+    const existing = await fs.readFile(dst, "utf8");
+    const isLegacyRunMode = /run:\s*\n\s*action:\s*[^\n]+/m.test(existing) || /mode:\s*internal-runtime/m.test(existing);
+    if (!isLegacyRunMode) continue;
+    await fs.copyFile(src, dst);
+  }
+}
+
 async function buildAssetManifest(
   pairs: SourceTargetPair[],
   previous: ScaffoldManifest | null,
@@ -328,6 +344,7 @@ export async function runInit(
   }
 
   await copyDirIfMissing(path.join(projectScaffoldTemplates, "commands"), path.join(root, "commands"), copiedAssets);
+  await refreshLegacyCommandTemplates(path.join(projectScaffoldTemplates, "commands"), path.join(root, "commands"));
   for (const command of workflowCommands) {
     await writeFileIfMissing(path.join(root, "commands", `${command.name}.md`), `${commandTemplate(command)}\n`);
   }

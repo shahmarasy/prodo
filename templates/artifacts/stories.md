@@ -2,14 +2,22 @@
 
 ---
 
-## 1. Legend
+## 1. Document Control
+
+| Version | Date | Author | Description |
+|--------|------|--------|-------------|
+| v1.0 | {{date}} | {{author}} | Initial version |
+
+---
+
+## 2. Legend
 
 - **Priority:** P0 (Critical), P1 (High), P2 (Medium), P3 (Low)
 - **Estimate:** Story Points (Fibonacci: 1, 2, 3, 5, 8, 13)
 
 ---
 
-## 2. Epic Overview
+## 3. Epic Overview
 
 - **EPIC-01:** {{Epic Name}}
 - **EPIC-02:** {{Epic Name}}
@@ -17,7 +25,7 @@
 
 ---
 
-## 3. Detailed User Stories
+## 4. Detailed User Stories
 
 ---
 

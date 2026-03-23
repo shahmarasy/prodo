@@ -1,8 +1,5 @@
 ---
 description: Generate wireframe artifacts.
-run:
-  action: wireframe
-  mode: internal-runtime
 ---
 
 ## User Input
@@ -13,12 +10,14 @@ $ARGUMENTS
 
 Execution policy:
 - Execute-first, diagnose-second.
-- Use Prodo internal runtime process; do not invoke CLI or shell scripts.
+- Do not run shell/CLI commands from inside the agent.
 - Input files are read-only; never modify or rewrite `brief.md`.
 
 ## Execution
 
 1. Verify minimal prerequisites (`.prodo/`, `brief.md`, normalized brief).
-2. Execute wireframe generation process with provided arguments.
-3. Confirm paired outputs exist (`.md` + `.html`).
-4. Diagnose internals only if command fails.
+2. Use normalized brief + latest PRD/workflow and apply wireframe templates (`.prodo/templates/wireframe.md` and `.prodo/templates/wireframe.html`).
+3. Confirm paired outputs exist under `product-docs/wireframes/` (`.md` + `.html`).
+4. Confirm `brief.md` content did not change.
+5. Do not create manual fallback files under `.prodo/`.
+6. Diagnose internals only if command fails.

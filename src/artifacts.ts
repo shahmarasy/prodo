@@ -15,7 +15,7 @@ import {
   prodoPath
 } from "./paths";
 import { createProvider } from "./providers";
-import { extractRequiredHeadingsFromTemplate, resolveTemplate } from "./template-resolver";
+import { extractRequiredHeadingsFromTemplate, resolveCompanionTemplate, resolveTemplate } from "./template-resolver";
 import { readSettings } from "./settings";
 import { sectionTextMap } from "./markdown";
 import type { ArtifactDoc, ArtifactType, ContractCoverage } from "./types";
@@ -92,11 +92,61 @@ function extractTurkishTitle(featureText: string): string {
   return base;
 }
 
+function replaceTemplateTokens(
+  template: string,
+  replacements: Record<string, string>,
+  fallbackFromToken: (token: string) => string
+): string {
+  let out = template;
+  for (const [key, value] of Object.entries(replacements)) {
+    out = out.replace(new RegExp(`\\{\\{\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\}\\}`, "g"), value);
+  }
+  return out.replace(/\{\{\s*([^}]+)\s*\}\}/g, (_match, tokenRaw: string) => {
+    const token = String(tokenRaw).trim();
+    return fallbackFromToken(token);
+  });
+}
+
+function renderWorkflowMermaidTemplate(
+  templateContent: string,
+  normalized: NormalizedBrief,
+  coverage: ContractCoverage,
+  lang: string
+): string {
+  const tr = lang.toLowerCase().startsWith("tr");
+  const primaryFeatureId = coverage.core_features[0] ?? normalized.contracts.core_features[0]?.id ?? "F1";
+  const primaryFeatureText =
+    normalized.contracts.core_features.find((item) => item.id === primaryFeatureId)?.text ??
+    normalized.contracts.core_features[0]?.text ??
+    (tr ? "Kullanici islemi" : "User action");
+
+  return replaceTemplateTokens(
+    templateContent,
+    {
+      "Flow Name": tr ? "Ana Akis" : "Main Flow",
+      "Primary Actor": normalized.audience[0] ?? (tr ? "Kullanici" : "User"),
+      "Primary Action": `[${primaryFeatureId}] ${primaryFeatureText}`,
+      "Success State": tr ? "Basari" : "Success",
+      "Error State": tr ? "Hata" : "Error"
+    },
+    (token) => {
+      const key = token.toLowerCase();
+      if (key.includes("actor") || key.includes("user")) return normalized.audience[0] ?? (tr ? "Kullanici" : "User");
+      if (key.includes("action") || key.includes("feature")) return `[${primaryFeatureId}] ${primaryFeatureText}`;
+      if (key.includes("success")) return tr ? "Basari" : "Success";
+      if (key.includes("error") || key.includes("fail")) return tr ? "Hata" : "Error";
+      if (key.includes("flow")) return tr ? "Ana Akis" : "Main Flow";
+      return token;
+    }
+  );
+}
+
 async function resolvePrompt(
   cwd: string,
   artifactType: ArtifactType,
   templateContent: string,
   requiredHeadings: string[],
+  companionTemplate: { path: string; content: string } | null,
   agent?: string
 ): Promise<string> {
   const base = await fs.readFile(promptPath(cwd, artifactType), "utf8");
@@ -112,6 +162,14 @@ Resolved template:
 \`\`\`md
 ${templateContent.trim()}
 \`\`\``;
+  const companionAuthority = companionTemplate
+    ? `Native companion template (STRICT reference):
+- Path: ${companionTemplate.path}
+- Preserve this native format and structure when generating companion artifact.
+\`\`\`${artifactType === "workflow" ? "mermaid" : "html"}
+${companionTemplate.content.trim()}
+\`\`\``
+    : "";
   const workflowPairing =
     artifactType === "workflow"
       ? `
@@ -124,9 +182,20 @@ flowchart TD
 \`\`\`
 - Mermaid block is mandatory.`
       : "";
+  const wireframePairing =
+    artifactType === "wireframe"
+      ? `
+Wireframe paired output contract (STRICT):
+- Output markdown explanation first (template headings).
+- Generate companion HTML screens based on native wireframe template.
+- HTML must stay low-fidelity and structure-first.`
+      : "";
   const withTemplate = `${base}
 
-${authority}${workflowPairing}`;
+${authority}
+${companionAuthority}
+${workflowPairing}
+${wireframePairing}`;
   if (!agent) return withTemplate;
   return `${withTemplate}
 
@@ -327,7 +396,8 @@ async function writeWireframeScreens(
   normalized: NormalizedBrief,
   coverage: ContractCoverage,
   lang: string,
-  headings: string[]
+  headings: string[],
+  htmlTemplateContent: string | null
 ): Promise<{ primaryPath: string; summaryBody: string }> {
   const tr = lang.toLowerCase().startsWith("tr");
   const screenContracts = normalized.contracts.core_features
@@ -341,7 +411,7 @@ async function writeWireframeScreens(
     const screenBase = `${baseName}-${index + 1}-${toSlug(title)}`;
     const htmlPath = path.join(targetDir, `${screenBase}.html`);
     const mdPath = path.join(targetDir, `${screenBase}.md`);
-    const html = `<!doctype html>
+    const fallbackHtml = `<!doctype html>
 <html lang="${lang}">
 <head>
   <meta charset="utf-8" />
@@ -373,8 +443,36 @@ async function writeWireframeScreens(
     </section>
   </main>
 </body>
-</html>
-`;
+</html>`;
+    const htmlTemplate = htmlTemplateContent && htmlTemplateContent.trim().length > 0 ? htmlTemplateContent : fallbackHtml;
+    const html = replaceTemplateTokens(
+      htmlTemplate,
+      {
+        "Screen Title": title,
+        "Primary Action": tr ? "Kaydet" : "Save",
+        "Description Label": tr ? "Aciklama" : "Description",
+        "Description Placeholder": `[${screen.id}] ${screen.text}`,
+        "Meta Label 1": tr ? "Kontrat" : "Contract",
+        "Meta Value 1": screen.id,
+        "Meta Label 2": tr ? "Aktor" : "Actor",
+        "Meta Value 2": normalized.audience[0] ?? (tr ? "Kullanici" : "User"),
+        "Field Label": tr ? "Alan" : "Field",
+        "Detailed Input Area": tr ? "Detayli Giris Alani" : "Detailed Input Area",
+        "Upload / Attachment Area": tr ? "Dosya Alani" : "Upload Area",
+        "Allowed file types / notes": tr ? "Dusuk sadakatli wireframe." : "Low-fidelity wireframe.",
+        "Consent / confirmation text": tr ? "Onay metni" : "Confirmation text"
+      },
+      (token) => {
+        const key = token.toLowerCase();
+        if (key.includes("screen") || key.includes("title")) return title;
+        if (key.includes("action") || key.includes("button")) return tr ? "Kaydet" : "Save";
+        if (key.includes("field")) return tr ? "Alan" : "Field";
+        if (key.includes("description") || key.includes("summary")) return `[${screen.id}] ${screen.text}`;
+        if (key.includes("actor") || key.includes("user")) return normalized.audience[0] ?? (tr ? "Kullanici" : "User");
+        if (key.includes("logo")) return "[ LOGO ]";
+        return token;
+      }
+    );
     await fs.writeFile(htmlPath, html, "utf8");
     const defaultMap = {
       purpose: [`- [${screen.id}] ${screen.text}`],
@@ -438,9 +536,20 @@ export async function generateArtifact(options: GenerateOptions): Promise<string
   const normalizedBriefRaw = await readJsonFile<Record<string, unknown>>(normalizedPath);
   const normalizedBrief = parseNormalizedBriefOrThrow(normalizedBriefRaw);
   const template = await resolveTemplate({ cwd, artifactType });
+  const companionTemplate = await resolveCompanionTemplate({ cwd, artifactType });
   if (!template || template.content.trim().length === 0) {
     throw new UserError(
       `Missing ${artifactType} template. Create \`.prodo/templates/${artifactType}.md\` before running \`prodo-${artifactType}\`.`
+    );
+  }
+  if (artifactType === "workflow" && !companionTemplate) {
+    throw new UserError(
+      "Missing workflow companion template. Create `.prodo/templates/workflow.mmd` before running `prodo-workflow`."
+    );
+  }
+  if (artifactType === "wireframe" && !companionTemplate) {
+    throw new UserError(
+      "Missing wireframe companion template. Create `.prodo/templates/wireframe.html` before running `prodo-wireframe`."
     );
   }
   const templateHeadings =
@@ -453,7 +562,14 @@ export async function generateArtifact(options: GenerateOptions): Promise<string
   const computedHeadings = templateHeadings.length > 0
     ? templateHeadings
     : (def.required_headings.length > 0 ? def.required_headings : defaultRequiredHeadings(artifactType));
-  const prompt = await resolvePrompt(cwd, artifactType, template?.content ?? "", computedHeadings, agent);
+  const prompt = await resolvePrompt(
+    cwd,
+    artifactType,
+    template?.content ?? "",
+    computedHeadings,
+    companionTemplate,
+    agent
+  );
   const provider = createProvider();
   const upstreamArtifacts = await buildUpstreamArtifacts(cwd, artifactType, def.upstream);
   const schemaHint = {
@@ -470,6 +586,8 @@ export async function generateArtifact(options: GenerateOptions): Promise<string
       contractCatalog: normalizedBrief.contracts,
       templateContent: template?.content ?? "",
       templatePath: template?.path ?? "",
+      companionTemplateContent: companionTemplate?.content ?? "",
+      companionTemplatePath: companionTemplate?.path ?? "",
       outputLanguage: settings.lang
     },
     schemaHint
@@ -500,6 +618,15 @@ export async function generateArtifact(options: GenerateOptions): Promise<string
         core_features: normalizedBrief.contracts.core_features.map((item) => item.id)
       };
     }
+  }
+
+  if (artifactType === "workflow" && companionTemplate?.content) {
+    workflowMermaidBody = renderWorkflowMermaidTemplate(
+      companionTemplate.content,
+      normalizedBrief,
+      contractCoverage,
+      settings.lang
+    ).trim();
   }
 
   enforceLanguage(generatedBody, settings.lang, artifactType);
@@ -569,7 +696,8 @@ export async function generateArtifact(options: GenerateOptions): Promise<string
       normalizedBrief,
       contractCoverage,
       settings.lang,
-      schemaHint.requiredHeadings
+      schemaHint.requiredHeadings,
+      companionTemplate?.content ?? null
     );
     doc = {
       frontmatter: doc.frontmatter,

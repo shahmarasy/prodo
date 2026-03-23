@@ -139,15 +139,13 @@ async function runCli(options = {}) {
         if (selectedAi) {
             out(`Agent command set installed for ${selectedAi}.`);
             out(`Installed ${result.installedAgentFiles.length} command files.`);
-            out("Primary workflow: run `prodo generate` after editing brief.md.");
-            out("Advanced: artifact-level slash commands remain available when needed.");
+            out("Agent workflow: edit brief.md, then run slash commands in your agent.");
         }
         else {
             out("No agent selected. Use `prodo generate` for end-to-end generation.");
-            out("Advanced commands are still available when needed.");
         }
         out(`Settings file: ${result.settingsPath}`);
-        out("Next: edit brief.md, then run `prodo generate`.");
+        out("Next: edit brief.md.");
     });
     program
         .command("generate")
@@ -182,7 +180,7 @@ async function runCli(options = {}) {
         });
     });
     program
-        .command("normalize")
+        .command("normalize", { hidden: true })
         .description("Advanced: normalize brief without full pipeline")
         .option("--brief <path>", "path to start brief markdown")
         .option("--out <path>", "output normalized brief json path")
@@ -210,7 +208,7 @@ async function runCli(options = {}) {
     });
     for (const type of artifactTypes) {
         program
-            .command(type)
+            .command(type, { hidden: true })
             .description(`Advanced: generate only ${type} artifact`)
             .option("--from <path>", "path to normalized-brief.json")
             .option("--out <path>", "output file path")
@@ -222,7 +220,7 @@ async function runCli(options = {}) {
         });
     }
     program
-        .command("agent-commands")
+        .command("agent-commands", { hidden: true })
         .requiredOption("--agent <name>", "agent profile: codex | gemini-cli | claude-cli")
         .action(async (opts) => {
         const agent = (0, agents_1.resolveAgent)(opts.agent);
@@ -246,7 +244,7 @@ async function runCli(options = {}) {
         }
     });
     program
-        .command("validate")
+        .command("validate", { hidden: true })
         .description("Advanced: run validation only")
         .option("--strict", "treat warnings as errors")
         .option("--report <path>", "report output path")

@@ -1,6 +1,6 @@
 {
   "name": "@shahmarasy/prodo",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI-first, prompt-powered product artifact kit",
   "main": "dist/cli.js",
   "types": "dist/cli.d.ts",

@@ -353,6 +353,13 @@ Rules:
 - write normalized output as a new JSON object only`;
 
 export function commandTemplate(command: WorkflowCommand): string {
+  const normalizeJsonGuard =
+    command.cliSubcommand === "normalize"
+      ? `
+- Normalize output format check:
+  - \`.prodo/briefs/normalized-brief.json\` must be strict JSON object (no markdown fences).
+  - If invalid, rewrite file as pure JSON object only.`
+      : "";
   return `---
 description: ${command.description}
 handoffs:
@@ -375,6 +382,8 @@ Execution policy:
 - Never run \`prodo-${command.cliSubcommand}\`, \`prodo ${command.cliSubcommand}\`, or \`prodo ...\` in shell.
 - Do not inspect hooks or internals unless command execution fails.
 - Input files are read-only; never modify or rewrite \`brief.md\`.
+- Never print full artifact content in chat.
+- Write/update files first, then reply with short status + written file path(s).
 
 ## Execution
 
@@ -392,6 +401,7 @@ Execution policy:
 - Confirm command success state (exit code or validation status).
 - Confirm \`brief.md\` hash/content did not change.
 - Do NOT create manual fallback files under \`.prodo/artifact\` or any ad-hoc folder.
+${normalizeJsonGuard}
 
 4. Diagnose only on failure:
 - Inspect \`.prodo/hooks.yml\` only after execution failure.

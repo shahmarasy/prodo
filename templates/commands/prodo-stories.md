@@ -10,8 +10,11 @@ $ARGUMENTS
 
 Execution policy:
 - Execute-first, diagnose-second.
-- Do not run shell/CLI commands from inside the agent.`n- Never run `prodo-stories`, `prodo stories`, or `prodo ...` in shell.
+- Do not run shell/CLI commands from inside the agent.
+- Never run `prodo-stories`, `prodo stories`, or `prodo ...` in shell.
 - Input files are read-only; never modify or rewrite `brief.md`.
+- Never print full artifact JSON/Markdown in chat.
+- Write outputs to files, then reply with short status + written file path(s).
 
 ## Execution
 

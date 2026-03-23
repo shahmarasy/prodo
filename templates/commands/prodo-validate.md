@@ -10,8 +10,11 @@ $ARGUMENTS
 
 Execution policy:
 - Execute-first, diagnose-second.
-- Do not run shell/CLI commands from inside the agent.`n- Never run `prodo-validate`, `prodo validate`, or `prodo ...` in shell.
+- Do not run shell/CLI commands from inside the agent.
+- Never run `prodo-validate`, `prodo validate`, or `prodo ...` in shell.
 - Input files are read-only; never modify or rewrite `brief.md`.
+- Never print full validation payload in chat.
+- Write/update validation report file, then reply with short status + report path.
 
 ## Execution
 

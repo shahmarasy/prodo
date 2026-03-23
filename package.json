@@ -1,0 +1,45 @@
+{
+  "name": "@shahmarasy/prodo",
+  "version": "0.1.0",
+  "description": "CLI-first, prompt-powered product artifact kit",
+  "main": "dist/cli.js",
+  "types": "dist/cli.d.ts",
+  "bin": {
+    "prodo": "bin/prodo.cjs"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "templates/",
+    "presets/",
+    "src/",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test tests/*.test.cjs",
+    "verify:release": "npm run build && node scripts/verify-release-build.cjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@clack/prompts": "^1.1.0",
+    "ajv": "^8.18.0",
+    "ajv-formats": "^3.0.1",
+    "commander": "^14.0.3",
+    "gray-matter": "^4.0.3",
+    "js-yaml": "^4.1.1"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.5.0",
+    "typescript": "^5.9.3"
+  }
+}

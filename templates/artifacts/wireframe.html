@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{{Screen Title}} - Wireframe</title>
+        <style>
+            body {
+                margin: 0;
+                padding: 32px;
+                background: #f2f2f2;
+                font-family: "Courier New", Courier, monospace;
+                color: #000;
+            }
+
+            .wireframe-page {
+                max-width: 1100px;
+                margin: 0 auto 48px auto;
+                background: #fff;
+                border: 2px solid #000;
+                padding: 20px;
+            }
+
+            .wf-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 16px;
+                margin-bottom: 16px;
+            }
+
+            .wf-logo {
+                border: 2px solid #000;
+                padding: 8px 16px;
+                font-weight: bold;
+                background: #fff;
+            }
+
+            .wf-title {
+                font-size: 20px;
+                font-weight: bold;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                text-align: right;
+                flex: 1;
+            }
+
+            .wf-divider {
+                border-bottom: 1px solid #000;
+                margin: 16px 0 24px 0;
+            }
+
+            .wf-label {
+                font-size: 12px;
+                font-weight: bold;
+                text-transform: uppercase;
+                margin-bottom: 8px;
+                letter-spacing: 0.5px;
+            }
+
+            .wf-box {
+                border: 1px solid #000;
+                background: #fff;
+                padding: 12px;
+            }
+
+            .wf-muted-box {
+                border: 1px solid #000;
+                background: #e5e5e5;
+                padding: 12px;
+            }
+
+            .wf-dashed-box {
+                border: 2px dashed #000;
+                background: #fff;
+                padding: 20px;
+                min-height: 120px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+            }
+
+            .wf-button {
+                display: inline-block;
+                border: 2px solid #000;
+                background: #fff;
+                padding: 10px 16px;
+                font-weight: bold;
+                text-align: center;
+                text-transform: uppercase;
+                cursor: default;
+            }
+
+            .wf-button.full {
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            .wf-input {
+                width: 100%;
+                height: 38px;
+                border: 1px solid #000;
+                background: #fff;
+                margin-top: 6px;
+                box-sizing: border-box;
+            }
+
+            .wf-textarea {
+                width: 100%;
+                height: 110px;
+                border: 1px solid #000;
+                background: #fff;
+                margin-top: 6px;
+                box-sizing: border-box;
+            }
+
+            .wf-checkbox-row {
+                display: flex;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .wf-checkbox {
+                width: 18px;
+                height: 18px;
+                border: 1px solid #000;
+                background: #fff;
+                flex-shrink: 0;
+                margin-top: 2px;
+            }
+
+            .wf-grid-2 {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+            }
+
+            .wf-grid-3 {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 12px;
+            }
+
+            .wf-layout-3 {
+                display: grid;
+                grid-template-columns: 1fr 2fr 1fr;
+                gap: 16px;
+            }
+
+            .wf-stack > * + * {
+                margin-top: 16px;
+            }
+
+            .wf-list > * + * {
+                margin-top: 8px;
+            }
+
+            .wf-small {
+                font-size: 12px;
+            }
+
+            .wf-xs {
+                font-size: 11px;
+            }
+
+            .wf-center {
+                text-align: center;
+            }
+
+            @media (max-width: 900px) {
+                .wf-layout-3,
+                .wf-grid-2,
+                .wf-grid-3 {
+                    grid-template-columns: 1fr;
+                }
+
+                .wf-header {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+
+                .wf-title {
+                    text-align: left;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wireframe-page">
+            <div class="wf-header">
+                <div class="wf-logo">[ LOGO ]</div>
+                <div class="wf-title">{{Screen Title}}</div>
+            </div>
+
+            <div class="wf-divider"></div>
+
+            <div class="wf-stack">
+                <section>
+                    <div class="wf-label">Summary / Context</div>
+                    <div class="wf-muted-box">
+                        <div class="wf-grid-2 wf-small">
+                            <div>
+                                <strong>{{Meta Label 1}}:</strong> {{Meta Value
+                                1}}
+                            </div>
+                            <div>
+                                <strong>{{Meta Label 2}}:</strong> {{Meta Value
+                                2}}
+                            </div>
+                        </div>
+                        <div class="wf-small" style="margin-top: 10px">
+                            <strong>{{Description Label}}:</strong>
+                            {{Description Placeholder}}
+                        </div>
+                    </div>
+                </section>
+
+                <section>
+                    <div class="wf-label">{{Primary Form / Content Title}}</div>
+                    <div class="wf-box">
+                        <label class="wf-label">{{Field Label}}</label>
+                        <div class="wf-input"></div>
+                    </div>
+                </section>
+
+                <section>
+                    <div class="wf-label">{{Detailed Input Area}}</div>
+                    <div class="wf-box">
+                        <div class="wf-textarea"></div>
+                    </div>
+                </section>
+
+                <section>
+                    <div class="wf-label">{{Upload / Attachment Area}}</div>
+                    <div class="wf-dashed-box">
+                        <div>[ DRAG & DROP AREA ]</div>
+                        <div class="wf-xs" style="margin-top: 8px">
+                            {{Allowed file types / notes}}
+                        </div>
+                    </div>
+                </section>
+
+                <section>
+                    <div class="wf-checkbox-row">
+                        <div class="wf-checkbox"></div>
+                        <div class="wf-small">
+                            {{Consent / confirmation text}}
+                        </div>
+                    </div>
+                </section>
+
+                <section class="wf-center">
+                    <div class="wf-button">{{Primary Action}}</div>
+                </section>
+            </div>
+        </div>
+    </body>
+</html>

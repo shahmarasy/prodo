@@ -1,1 +1,48 @@
-{"name":"fintech","priority":1,"min_prodo_version":"0.1.0","version":"1.0.0"}
+{
+  "name": "fintech",
+  "display_name": "Financial Technology (FinTech)",
+  "description": "Comprehensive preset for fintech and financial services products with regulatory compliance, security, and transaction-focused features",
+  "category": "domain-specific",
+  "priority": 1,
+  "min_prodo_version": "0.1.0",
+  "version": "1.0.0",
+  "metadata": {
+    "domain": "Financial Technology",
+    "industry_focus": ["Banking", "Payment Processing", "Investment Management", "Lending", "Crypto/Blockchain"],
+    "compliance_required": ["KYC/AML", "PCI DSS", "SOC 2", "GDPR", "Regulatory Standards"],
+    "security_level": "critical",
+    "data_sensitivity": "highly-sensitive"
+  },
+  "preset_features": {
+    "domain_expertise": [
+      "Regulatory compliance (KYC, AML, SCA)",
+      "Security & encryption standards",
+      "Payment gateway integration",
+      "Transaction management & reconciliation",
+      "Risk management & fraud detection",
+      "Audit trails & compliance reporting"
+    ],
+    "templates_included": ["prd"],
+    "context_enrichment": {
+      "user_personas": ["Compliance Officer", "Risk Manager", "Treasury Manager", "Customer Service", "Auditor"],
+      "success_metrics": ["Compliance rate", "Transaction volume", "Fraud detection rate", "Settlement time", "System uptime"],
+      "constraints": ["Regulatory deadlines", "Security mandates", "Data residency", "Transaction limits", "Audit requirements"]
+    }
+  },
+  "agent_requirements": {
+    "required_expertise": [
+      "Financial services domain knowledge",
+      "Regulatory compliance understanding",
+      "Security-first mindset",
+      "Risk assessment capability"
+    ],
+    "recommended_agents": ["Product Manager (Finance)", "Compliance Specialist", "Security Architect"],
+    "critical_validation": ["Compliance checklist", "Security review", "Risk assessment"]
+  },
+  "prompt_configuration": {
+    "tone": "Professional, compliance-focused, security-conscious",
+    "terminology_style": "industry-standard (fintech, KYC, AML, SCA, PCI DSS)",
+    "risk_tolerance": "zero-tolerance for security/compliance violations",
+    "documentation_level": "comprehensive (audit trail required)"
+  }
+}

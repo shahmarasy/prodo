@@ -1,1 +1,51 @@
-{"name":"marketplace","priority":1,"min_prodo_version":"0.1.0","version":"1.0.0"}
+{
+  "name": "marketplace",
+  "display_name": "Multi-Sided Marketplace",
+  "description": "Comprehensive preset for marketplace platforms with multi-stakeholder support, trust mechanisms, commission systems, and community features",
+  "category": "domain-specific",
+  "priority": 1,
+  "min_prodo_version": "0.1.0",
+  "version": "1.0.0",
+  "metadata": {
+    "domain": "E-Commerce & Marketplace",
+    "industry_focus": ["B2C Marketplace", "C2C Marketplace", "Gig Economy", "Subscription Services", "SaaS Marketplace"],
+    "marketplace_model": ["commission-based", "subscription-based", "freemium", "hybrid"],
+    "key_complexity": "multi-stakeholder coordination",
+    "trust_requirement": "critical"
+  },
+  "preset_features": {
+    "domain_expertise": [
+      "Multi-stakeholder coordination (buyers, sellers, platform)",
+      "Trust & safety mechanisms (verification, reviews, ratings)",
+      "Commission & payment systems",
+      "Dispute resolution & conflict management",
+      "Community moderation & content policies",
+      "Recommendation algorithms & discovery",
+      "Supply & demand balancing",
+      "Seller onboarding & quality assurance"
+    ],
+    "templates_included": ["prd"],
+    "context_enrichment": {
+      "user_personas": ["Buyer", "Seller", "Platform Operator", "Support Agent", "Community Moderator"],
+      "success_metrics": ["Gross merchandise volume (GMV)", "Seller growth rate", "Customer retention", "Review authenticity", "Dispute rate"],
+      "constraints": ["Trust & safety standards", "Commission structure", "Seller quality", "Fraud prevention", "Community guidelines"]
+    }
+  },
+  "agent_requirements": {
+    "required_expertise": [
+      "Multi-sided marketplace dynamics",
+      "Trust and safety framework design",
+      "Seller quality management",
+      "Community management",
+      "Conflict resolution strategies"
+    ],
+    "recommended_agents": ["Platform PM", "Trust & Safety Lead", "Seller Success Manager", "Community Manager"],
+    "critical_validation": ["Trust scoring mechanism", "Dispute resolution process", "Seller quality criteria"]
+  },
+  "prompt_configuration": {
+    "tone": "Community-focused, trust-centered, multi-perspective",
+    "stakeholder_focus": ["buyer-experience", "seller-success", "platform-sustainability"],
+    "conflict_resolution": "fair-for-all-parties",
+    "documentation_level": "detailed (policies and procedures required)"
+  }
+}

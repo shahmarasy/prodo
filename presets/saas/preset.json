@@ -1,1 +1,53 @@
-{"name":"saas","priority":1,"min_prodo_version":"0.1.0","version":"1.0.0"}
+{
+  "name": "saas",
+  "display_name": "Software as a Service (SaaS)",
+  "description": "Comprehensive preset for SaaS products with subscription models, enterprise integration, scalability, customer success focus, and API-first architecture",
+  "category": "domain-specific",
+  "priority": 1,
+  "min_prodo_version": "0.1.0",
+  "version": "1.0.0",
+  "metadata": {
+    "domain": "Software as a Service",
+    "industry_focus": ["Enterprise Software", "Business Tools", "Workflow Automation", "Analytics", "Vertical SaaS"],
+    "business_model": ["subscription", "per-seat", "usage-based", "hybrid"],
+    "deployment_model": ["multi-tenant", "single-tenant", "hybrid"],
+    "key_complexity": "enterprise scale, integration requirements, customer success"
+  },
+  "preset_features": {
+    "domain_expertise": [
+      "Subscription billing & recurring revenue",
+      "Enterprise integration (SSO, SAML, APIs)",
+      "Customer success & retention strategies",
+      "Scalability & multi-tenancy",
+      "API design & developer experience",
+      "Compliance & data governance (SOC 2, HIPAA, GDPR)",
+      "Usage analytics & metering",
+      "Self-serve onboarding & product-led growth"
+    ],
+    "templates_included": ["prd"],
+    "context_enrichment": {
+      "user_personas": ["End User", "Admin/IT", "Finance Lead", "Customer Success Manager", "Developer"],
+      "success_metrics": ["Monthly Recurring Revenue (MRR)", "Customer Acquisition Cost (CAC)", "Lifetime Value (LTV)", "Churn rate", "NPS"],
+      "constraints": ["Uptime SLA", "Integration requirements", "Compliance standards", "Data residency", "Support tiers"]
+    }
+  },
+  "agent_requirements": {
+    "required_expertise": [
+      "SaaS business model understanding",
+      "Enterprise customer needs",
+      "Subscription economics",
+      "Integration architecture",
+      "Customer success strategies",
+      "Scalability planning"
+    ],
+    "recommended_agents": ["SaaS PM", "Enterprise Architect", "Customer Success Lead", "DevOps/Infrastructure Lead"],
+    "critical_validation": ["Pricing model", "Uptime SLA", "Integration roadmap", "Churn prevention strategy"]
+  },
+  "prompt_configuration": {
+    "tone": "Professional, enterprise-focused, customer-success-oriented",
+    "pricing_strategy": "transparent-value-based",
+    "customer_journey": "onboarding → adoption → expansion → retention",
+    "integration_first": "API-first, extensibility-critical",
+    "documentation_level": "comprehensive (API docs, admin guides, playbooks)"
+  }
+}

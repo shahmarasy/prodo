@@ -7,6 +7,7 @@ exports.ensureDir = ensureDir;
 exports.fileExists = fileExists;
 exports.readJsonFile = readJsonFile;
 exports.timestampSlug = timestampSlug;
+exports.artifactFileStamp = artifactFileStamp;
 exports.listFilesSortedByMtime = listFilesSortedByMtime;
 exports.isPathInside = isPathInside;
 const promises_1 = __importDefault(require("node:fs/promises"));
@@ -29,6 +30,18 @@ async function readJsonFile(filePath) {
 }
 function timestampSlug(date = new Date()) {
     return date.toISOString().replace(/[:.]/g, "-");
+}
+function pad2(value) {
+    return String(value).padStart(2, "0");
+}
+function artifactFileStamp(date = new Date()) {
+    const year = date.getFullYear();
+    const month = pad2(date.getMonth() + 1);
+    const day = pad2(date.getDate());
+    const hour = pad2(date.getHours());
+    const minute = pad2(date.getMinutes());
+    const second = pad2(date.getSeconds());
+    return `${year}${month}${day}-${hour}${minute}${second}`;
 }
 async function listFilesSortedByMtime(dirPath) {
     const exists = await fileExists(dirPath);

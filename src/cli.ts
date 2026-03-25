@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { loadAgentCommandSet, resolveAgent } from "./agents";
 import { resolveAi, type SupportedAi } from "./agent-command-installer";
-import { listArtifactTypes } from "./artifact-registry";
+import { listArtifactDefinitions, listArtifactTypes } from "./artifact-registry";
 import { generateArtifact } from "./artifacts";
 import { runDoctor } from "./doctor";
 import { UserError } from "./errors";
@@ -30,10 +30,11 @@ const dynamicImport = new Function("specifier", "return import(specifier)") as (
   specifier: string
 ) => Promise<unknown>;
 
-function mapForcedCommand(forcedCommand: string): ArtifactType | "init" | "validate" | "normalize" | undefined {
+function mapForcedCommand(forcedCommand: string): ArtifactType | "init" | "validate" | "normalize" | "fix" | undefined {
   if (forcedCommand === "prodo-init") return "init";
   if (forcedCommand === "prodo-validate") return "validate";
   if (forcedCommand === "prodo-normalize") return "normalize";
+  if (forcedCommand === "prodo-fix") return "fix";
   if (forcedCommand === "prodo-prd") return "prd";
   if (forcedCommand === "prodo-workflow") return "workflow";
   if (forcedCommand === "prodo-wireframe") return "wireframe";
@@ -44,7 +45,7 @@ function mapForcedCommand(forcedCommand: string): ArtifactType | "init" | "valid
 
 async function runArtifactCommand(
   type: ArtifactType,
-  opts: { from?: string; out?: string; agent?: string },
+  opts: { from?: string; out?: string; agent?: string; revisionType?: "default" | "fix" },
   cwd: string,
   log: (message: string) => void,
   options?: { suggestValidate?: boolean }
@@ -56,7 +57,8 @@ async function runArtifactCommand(
     cwd,
     normalizedBriefOverride: opts.from,
     outPath: opts.out,
-    agent
+    agent,
+    revisionType: opts.revisionType
   });
   const agentMsg = agent ? ` [agent=${agent}]` : "";
   log(`${type.toUpperCase()} generated${agentMsg}: ${file}`);
@@ -116,13 +118,15 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
     .command("init [target]")
     .option("--ai <name>", "agent integration: codex | gemini-cli | claude-cli")
     .option("--lang <code>", "document language (e.g. en, tr)")
+    .option("--author <name>", "document author name")
     .option("--preset <name>", "preset to install during initialization")
     .action(async (target, opts) => {
       const projectRoot = path.resolve(cwd, target ?? ".");
       const selected = await gatherInitSelections({
         projectRoot,
         aiInput: opts.ai,
-        langInput: opts.lang
+        langInput: opts.lang,
+        authorInput: opts.author
       });
       const selectedAi = selected.ai as SupportedAi | undefined;
 
@@ -133,6 +137,7 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
         const result = await runInit(projectRoot, {
           ai: selectedAi,
           lang: selected.lang,
+          author: selected.author,
           preset: opts.preset,
           script: selected.script
         });
@@ -141,7 +146,8 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
           projectRoot,
           settingsPath: result.settingsPath,
           ai: selectedAi,
-          lang: selected.lang
+          lang: selected.lang,
+          author: selected.author
         });
         return;
       }
@@ -149,6 +155,7 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
       const result = await runInit(projectRoot, {
         ai: selectedAi,
         lang: selected.lang,
+        author: selected.author,
         preset: opts.preset,
         script: selected.script
       });
@@ -161,6 +168,7 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
         out("No agent selected. Use `prodo generate` for end-to-end generation.");
       }
       out(`Settings file: ${result.settingsPath}`);
+      out(`Author: ${selected.author}`);
       out("Next: edit brief.md.");
     });
 
@@ -194,6 +202,56 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
           throw new UserError("Validation failed. Review report and fix issues.");
         }
         out("Generation pipeline completed. Validation passed.");
+        await runHookPhase(cwd, "after_validate", out);
+      });
+    });
+
+  program
+    .command("fix", { hidden: true })
+    .description("Advanced: auto-regenerate affected artifacts from validation findings")
+    .option("--agent <name>", "agent profile: codex | gemini-cli | claude-cli")
+    .option("--strict", "treat validation warnings as errors")
+    .option("--report <path>", "validation report output path")
+    .action(async (opts) => {
+      if (opts.agent) resolveAgent(opts.agent);
+      await withBriefReadOnlyGuard(cwd, async () => {
+        await runHookPhase(cwd, "before_validate", out);
+        const initial = await runValidate(cwd, {
+          strict: Boolean(opts.strict),
+          report: opts.report
+        });
+        out(`Validation report written to: ${initial.reportPath}`);
+        await runHookPhase(cwd, "after_validate", out);
+
+        if (initial.pass) {
+          out("No blocking issues found. Nothing to fix.");
+          return;
+        }
+
+        const targets = await resolveFixTargets(cwd, artifactTypes, initial.issues);
+        out(`Validation failed. Regenerating impacted artifacts: ${targets.join(", ")}`);
+
+        await runHookPhase(cwd, "before_normalize", out);
+        const normalizedPath = await runNormalize({ cwd });
+        out(`Normalized brief refreshed: ${normalizedPath}`);
+        await runHookPhase(cwd, "after_normalize", out);
+
+        for (const type of targets) {
+          await runArtifactCommand(type, { from: normalizedPath, agent: opts.agent, revisionType: "fix" }, cwd, out, {
+            suggestValidate: false
+          });
+        }
+
+        await runHookPhase(cwd, "before_validate", out);
+        const final = await runValidate(cwd, {
+          strict: Boolean(opts.strict),
+          report: opts.report
+        });
+        out(`Validation report written to: ${final.reportPath}`);
+        if (!final.pass) {
+          throw new UserError("Fix completed but validation is still failing. Review report and retry.");
+        }
+        out("Fix pipeline completed. Validation passed.");
         await runHookPhase(cwd, "after_validate", out);
       });
     });
@@ -294,6 +352,8 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
         await program.parseAsync(["node", "prodo", "normalize", ...argv.slice(2)]);
       } else if (forced === "validate") {
         await program.parseAsync(["node", "prodo", "validate", ...argv.slice(2)]);
+      } else if (forced === "fix") {
+        await program.parseAsync(["node", "prodo", "fix", ...argv.slice(2)]);
       } else {
         await program.parseAsync(["node", "prodo", forced, ...argv.slice(2)]);
       }
@@ -316,4 +376,35 @@ if (require.main === module) {
   runCli().then((code) => {
     process.exitCode = code;
   });
+}
+
+async function resolveFixTargets(
+  cwd: string,
+  artifactTypes: ArtifactType[],
+  issues: Array<{ artifactType?: ArtifactType }>
+): Promise<ArtifactType[]> {
+  const direct = new Set<ArtifactType>(
+    issues
+      .map((issue) => issue.artifactType)
+      .filter(
+        (artifactType): artifactType is ArtifactType =>
+          typeof artifactType === "string" && artifactTypes.includes(artifactType)
+      )
+  );
+  if (direct.size === 0) return artifactTypes;
+
+  const defs = await listArtifactDefinitions(cwd);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const def of defs) {
+      const needsRefresh = def.upstream.some((upstream) => direct.has(upstream));
+      if (needsRefresh && !direct.has(def.name)) {
+        direct.add(def.name);
+        changed = true;
+      }
+    }
+  }
+
+  return artifactTypes.filter((artifactType) => direct.has(artifactType));
 }

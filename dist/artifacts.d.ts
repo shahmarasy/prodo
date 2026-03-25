@@ -5,5 +5,6 @@ export type GenerateOptions = {
     normalizedBriefOverride?: string;
     outPath?: string;
     agent?: string;
+    revisionType?: "default" | "fix";
 };
 export declare function generateArtifact(options: GenerateOptions): Promise<string>;

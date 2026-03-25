@@ -210,10 +210,10 @@ test("workflow derived context survives renamed template headings", async (t) =>
   await runCli({ cwd, argv: ["node", "prodo", "init"], log: () => {}, error: () => {} });
   await fs.writeFile(path.join(cwd, ".prodo", "templates", "overrides", "workflow.md"), "# Workflow Template\n\n## Primary Actors\n- Customer\n\n## Happy Path\n1. User starts checkout\n2. System processes\n\n## Failure Paths\n- Payment failure fallback\n", "utf8");
   assert.equal(await runCli({ cwd, argv: ["node", "prodo", "workflow"], log: () => {}, error: () => {} }), 0);
-  const workflowDir = path.join(cwd, "product-docs", "workflows");
-  const workflowFile = (await fs.readdir(workflowDir)).find((name) => name.endsWith(".md"));
-  assert.ok(workflowFile);
-  const contextPath = path.join(cwd, ".prodo", "state", "context", `${path.parse(workflowFile).name}.json`);
+  const index = JSON.parse(await fs.readFile(path.join(cwd, ".prodo", "state", "index.json"), "utf8"));
+  const workflowPath = index.active.workflow;
+  assert.ok(workflowPath);
+  const contextPath = path.join(cwd, ".prodo", "state", "context", `${path.parse(workflowPath).name}.json`);
   const context = JSON.parse(await fs.readFile(contextPath, "utf8"));
   assert.ok(Array.isArray(context.contract_coverage.core_features));
   assert.ok(context.contract_coverage.core_features.length > 0);
@@ -233,6 +233,26 @@ test("workflow output is paired markdown + mermaid", async (t) => {
   assert.match(content, /flowchart\s+TD/i);
 });
 
+test("workflow generates multiple flow files when brief has multiple core features", async (t) => {
+  const cwd = await makeTempDir();
+  t.after(async () => fs.rm(cwd, { recursive: true, force: true }));
+  await runCli({ cwd, argv: ["node", "prodo", "init"], log: () => {}, error: () => {} });
+  const normalizedPath = path.join(cwd, ".prodo", "briefs", "normalized-brief.json");
+  const normalized = JSON.parse(await fs.readFile(normalizedPath, "utf8"));
+  normalized.core_features = ["Flow A", "Flow B", "Flow C"];
+  normalized.contracts.core_features = [
+    { id: "F1", text: "Flow A" },
+    { id: "F2", text: "Flow B" },
+    { id: "F3", text: "Flow C" }
+  ];
+  await fs.writeFile(normalizedPath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+  assert.equal(await runCli({ cwd, argv: ["node", "prodo", "workflow"], log: () => {}, error: () => {} }), 0);
+  const workflowDir = path.join(cwd, "product-docs", "workflows");
+  const names = await fs.readdir(workflowDir);
+  assert.ok(names.filter((name) => name.endsWith(".md")).length >= 2);
+  assert.ok(names.filter((name) => name.endsWith(".mmd")).length >= 2);
+});
+
 test("workflow --out .md generates paired .md and .mmd files", async (t) => {
   const cwd = await makeTempDir();
   t.after(async () => fs.rm(cwd, { recursive: true, force: true }));
@@ -242,6 +262,17 @@ test("workflow --out .md generates paired .md and .mmd files", async (t) => {
   assert.equal(code, 0);
   await fs.stat(outPath);
   await fs.stat(path.join(cwd, "product-docs", "workflows", "manual-workflow.mmd"));
+});
+
+test("default artifact file naming uses yyyymmdd-hhmmss pattern", async (t) => {
+  const cwd = await makeTempDir();
+  t.after(async () => fs.rm(cwd, { recursive: true, force: true }));
+  await runCli({ cwd, argv: ["node", "prodo", "init"], log: () => {}, error: () => {} });
+  assert.equal(await runCli({ cwd, argv: ["node", "prodo", "prd"], log: () => {}, error: () => {} }), 0);
+  const prdDir = path.join(cwd, "product-docs", "prd");
+  const prdFile = (await fs.readdir(prdDir)).find((name) => name.endsWith(".md"));
+  assert.ok(prdFile);
+  assert.match(prdFile, /^prd-\d{8}-\d{6}(?:-\d{2})?\.md$/);
 });
 
 test("artifact --out fails outside product-docs", async (t) => {
@@ -267,6 +298,23 @@ test("wireframe output is paired markdown + html screens", async (t) => {
   assert.ok(htmlFiles.length >= 2);
   const firstMdBase = path.parse(mdFiles[0]).name;
   assert.ok(htmlFiles.includes(`${firstMdBase}.html`));
+});
+
+test("prd uses init author in generated output", async (t) => {
+  const cwd = await makeTempDir();
+  t.after(async () => fs.rm(cwd, { recursive: true, force: true }));
+  await runCli({
+    cwd,
+    argv: ["node", "prodo", "init", ".", "--author", "Shahmarasy"],
+    log: () => {},
+    error: () => {}
+  });
+  assert.equal(await runCli({ cwd, argv: ["node", "prodo", "prd"], log: () => {}, error: () => {} }), 0);
+  const prdDir = path.join(cwd, "product-docs", "prd");
+  const prdFile = (await fs.readdir(prdDir)).find((name) => name.endsWith(".md"));
+  assert.ok(prdFile);
+  const prdRaw = await fs.readFile(path.join(prdDir, prdFile), "utf8");
+  assert.match(prdRaw, /author:\s*Shahmarasy/i);
 });
 
 test("wireframe html output follows wireframe.html template", async (t) => {
@@ -322,11 +370,11 @@ test("validate fails when workflow artifact is prose instead of mermaid", async 
   const logs = [];
   await runCli({ cwd, argv: ["node", "prodo", "init"], log: () => {}, error: () => {} });
   assert.equal(await runCli({ cwd, argv: ["node", "prodo", "workflow"], log: () => {}, error: () => {} }), 0);
-  const workflowDir = path.join(cwd, "product-docs", "workflows");
-  const mdFile = (await fs.readdir(workflowDir)).find((name) => name.endsWith(".md"));
-  assert.ok(mdFile);
-  const mmdPath = path.join(workflowDir, `${path.parse(mdFile).name}.mmd`);
-  const sidecarPath = path.join(workflowDir, `${path.parse(mdFile).name}.artifact.json`);
+  const index = JSON.parse(await fs.readFile(path.join(cwd, ".prodo", "state", "index.json"), "utf8"));
+  const mdPath = index.active.workflow;
+  assert.ok(mdPath);
+  const mmdPath = path.join(path.dirname(mdPath), `${path.parse(mdPath).name}.mmd`);
+  const sidecarPath = path.join(path.dirname(mdPath), `${path.parse(mdPath).name}.artifact.json`);
   await fs.writeFile(mmdPath, "## Actors\n- User\n## Main Flow\n- step\n", "utf8");
   const sidecar = JSON.parse(await fs.readFile(sidecarPath, "utf8"));
   sidecar.body = "## Flow Purpose\n- valid\n## Actors\n- User\n## Preconditions\n- ok\n## Main Flow\n- step\n## Edge Cases\n- err\n## Postconditions\n- done\n";
@@ -348,6 +396,49 @@ test("validate fails when wireframe entry is plain text instead of html", async 
   await fs.writeFile(htmlPath, "## Wireframe Notes\n- text only\n", "utf8");
   const code = await runCli({ cwd, argv: ["node", "prodo", "validate"], log: (m) => logs.push(m), error: (m) => logs.push(m) });
   assert.equal(code, 1);
+});
+
+test("fix command regenerates failing workflow artifacts from validation report", async (t) => {
+  const cwd = await makeTempDir();
+  t.after(async () => fs.rm(cwd, { recursive: true, force: true }));
+  const logs = [];
+  await runCli({ cwd, argv: ["node", "prodo", "init"], log: () => {}, error: () => {} });
+  assert.equal(await runCli({ cwd, argv: ["node", "prodo", "workflow"], log: () => {}, error: () => {} }), 0);
+  const index = JSON.parse(await fs.readFile(path.join(cwd, ".prodo", "state", "index.json"), "utf8"));
+  const previousMdPath = index.active.workflow;
+  assert.ok(previousMdPath);
+  const previousMmdPath = path.join(path.dirname(previousMdPath), `${path.parse(previousMdPath).name}.mmd`);
+  await fs.writeFile(previousMmdPath, "## prose only\n- not mermaid\n", "utf8");
+
+  const code = await runCli({ cwd, argv: ["node", "prodo", "fix"], log: (m) => logs.push(m), error: (m) => logs.push(m) });
+  assert.equal(code, 0);
+
+  const afterIndex = JSON.parse(await fs.readFile(path.join(cwd, ".prodo", "state", "index.json"), "utf8"));
+  const newMdPath = afterIndex.active.workflow;
+  assert.ok(newMdPath);
+  assert.notEqual(newMdPath, previousMdPath);
+  assert.match(path.basename(newMdPath), /^workflow-\d{8}-\d{6}(?:-\d{2})?(?:-[0-9]+-[a-z0-9-]+)?\.md$/);
+
+  const newMmdPath = path.join(path.dirname(newMdPath), `${path.parse(newMdPath).name}.mmd`);
+  const repaired = await fs.readFile(newMmdPath, "utf8");
+  assert.match(repaired, /flowchart|graph/i);
+
+  const fixedMd = await fs.readFile(newMdPath, "utf8");
+  assert.match(fixedMd, /\|\s*v1\.1\s*\|/i);
+  assert.match(fixedMd, /Post-validation fix revision/i);
+
+  const newMmdPath2 = path.join(path.dirname(newMdPath), `${path.parse(newMdPath).name}.mmd`);
+  await fs.writeFile(newMmdPath2, "## prose only again\n- not mermaid\n", "utf8");
+  const code2 = await runCli({ cwd, argv: ["node", "prodo", "fix"], log: (m) => logs.push(m), error: (m) => logs.push(m) });
+  assert.equal(code2, 0);
+  const afterIndex2 = JSON.parse(await fs.readFile(path.join(cwd, ".prodo", "state", "index.json"), "utf8"));
+  const newestMdPath = afterIndex2.active.workflow;
+  assert.ok(newestMdPath);
+  assert.notEqual(newestMdPath, newMdPath);
+  const fixedMd2 = await fs.readFile(newestMdPath, "utf8");
+  assert.match(fixedMd2, /\|\s*v1\.2\s*\|/i);
+
+  assert.match(logs.join("\n"), /Fix pipeline completed\. Validation passed\./);
 });
 
 test("doctor command prints grouped environment report", async (t) => {

@@ -17,6 +17,53 @@ type NormalizeOptions = {
   out?: string;
 };
 
+function normalizedKey(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ı/g, "i")
+    .replace(/İ/g, "I")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function extractBriefProductName(rawBrief: string): string | undefined {
+  const lines = rawBrief.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const headingMatch = lines[index].match(/^\s*#{1,6}\s+(.+?)\s*$/);
+    if (!headingMatch) continue;
+    const headingKey = normalizedKey(headingMatch[1]);
+    const isProductHeading =
+      headingKey === "product name" ||
+      headingKey === "project name" ||
+      headingKey === "urun adi" ||
+      headingKey === "urun ismi";
+    if (!isProductHeading) continue;
+
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const rawLine = lines[cursor].trim();
+      if (!rawLine) continue;
+      if (/^\s*#{1,6}\s+/.test(rawLine)) break;
+      const cleaned = rawLine.replace(/^\s*[-*]\s*/, "").trim();
+      if (cleaned.length > 0) return cleaned;
+    }
+  }
+  return undefined;
+}
+
+function preserveOriginalProductName(
+  parsed: Record<string, unknown>,
+  rawBrief: string
+): Record<string, unknown> {
+  const briefProductName = extractBriefProductName(rawBrief);
+  if (!briefProductName) return parsed;
+  const generated = typeof parsed.product_name === "string" ? parsed.product_name : "";
+  if (!generated.trim()) return { ...parsed, product_name: briefProductName };
+  if (normalizedKey(generated) !== normalizedKey(briefProductName)) return parsed;
+  return { ...parsed, product_name: briefProductName };
+}
+
 function extractJsonObject(raw: string): Record<string, unknown> {
   const trimmed = raw.trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -61,17 +108,18 @@ export async function runNormalize(options: NormalizeOptions): Promise<string> {
   );
 
   const parsed = extractJsonObject(generated.body);
+  const preserved = preserveOriginalProductName(parsed, rawBrief);
   const withContracts = {
-    ...parsed,
+    ...preserved,
     contracts:
-      parsed.contracts ??
+      preserved.contracts ??
       buildContractsFromArrays({
-        goals: Array.isArray(parsed.goals) ? parsed.goals.filter((x): x is string => typeof x === "string") : [],
-        core_features: Array.isArray(parsed.core_features)
-          ? parsed.core_features.filter((x): x is string => typeof x === "string")
+        goals: Array.isArray(preserved.goals) ? preserved.goals.filter((x): x is string => typeof x === "string") : [],
+        core_features: Array.isArray(preserved.core_features)
+          ? preserved.core_features.filter((x): x is string => typeof x === "string")
           : [],
-        constraints: Array.isArray(parsed.constraints)
-          ? parsed.constraints.filter((x): x is string => typeof x === "string")
+        constraints: Array.isArray(preserved.constraints)
+          ? preserved.constraints.filter((x): x is string => typeof x === "string")
           : []
       })
   };

@@ -11,7 +11,8 @@ const BASE_WORKFLOW_COMMANDS: WorkflowCommand[] = [
   { name: "prodo-wireframe", cliSubcommand: "wireframe", description: "Generate wireframe artifact." },
   { name: "prodo-stories", cliSubcommand: "stories", description: "Generate stories artifact." },
   { name: "prodo-techspec", cliSubcommand: "techspec", description: "Generate technical specification artifact." },
-  { name: "prodo-validate", cliSubcommand: "validate", description: "Run schema and cross-artifact consistency validation." }
+  { name: "prodo-validate", cliSubcommand: "validate", description: "Run schema and cross-artifact consistency validation." },
+  { name: "prodo-fix", cliSubcommand: "fix", description: "Auto-fix artifacts based on validation report and brief." }
 ];
 
 export const WORKFLOW_COMMANDS: WorkflowCommand[] = BASE_WORKFLOW_COMMANDS;

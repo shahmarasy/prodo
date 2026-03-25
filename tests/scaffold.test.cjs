@@ -250,3 +250,34 @@ test("init with --lang tr stores language setting", async (t) => {
   assert.equal(settings.lang, "tr");
 });
 
+test("init with --author stores author setting", async (t) => {
+  const cwd = await makeTempDir();
+  t.after(async () => fs.rm(cwd, { recursive: true, force: true }));
+  const code = await runCli({
+    cwd,
+    argv: ["node", "prodo", "init", ".", "--author", "Shahmarasy"],
+    log: () => {},
+    error: () => {}
+  });
+  assert.equal(code, 0);
+  const settings = JSON.parse(await fs.readFile(path.join(cwd, ".prodo", "settings.json"), "utf8"));
+  assert.equal(settings.author, "Shahmarasy");
+});
+
+test("init aligns schema required headings with scaffold templates", async (t) => {
+  const cwd = await makeTempDir();
+  t.after(async () => fs.rm(cwd, { recursive: true, force: true }));
+  await fs.mkdir(path.join(cwd, "templates", "artifacts"), { recursive: true });
+  await fs.writeFile(
+    path.join(cwd, "templates", "artifacts", "prd.md"),
+    "# PRD Template\n\n## Section A\n- A\n\n## Section B\n- B\n",
+    "utf8"
+  );
+  const code = await runCli({ cwd, argv: ["node", "prodo", "init"], log: () => {}, error: () => {} });
+  assert.equal(code, 0);
+  const schemaRaw = await fs.readFile(path.join(cwd, ".prodo", "schemas", "prd.yaml"), "utf8");
+  assert.match(schemaRaw, /x_required_headings:/);
+  assert.match(schemaRaw, /## Section A/);
+  assert.match(schemaRaw, /## Section B/);
+});
+

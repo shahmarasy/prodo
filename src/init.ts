@@ -9,6 +9,7 @@ import { briefPath, outputDirPath, outputIndexPath, prodoPath } from "./paths";
 import { applyConfiguredPresets } from "./preset-loader";
 import { syncRegistry } from "./registry";
 import { writeSettings } from "./settings";
+import { extractRequiredHeadingsFromTemplate } from "./template-resolver";
 import { buildWorkflowCommands } from "./workflow-commands";
 import {
   NORMALIZED_BRIEF_TEMPLATE,
@@ -283,7 +284,7 @@ function summarizeParity(items: AssetManifestItem[]): ScaffoldManifest["parity_s
 
 export async function runInit(
   cwd: string,
-  options?: { ai?: SupportedAi; lang?: string; preset?: string; script?: "sh" | "ps" }
+  options?: { ai?: SupportedAi; lang?: string; author?: string; preset?: string; script?: "sh" | "ps" }
 ): Promise<{ installedAgentFiles: string[]; settingsPath: string }> {
   const root = prodoPath(cwd);
   const artifactDefs = await listArtifactDefinitions(cwd);
@@ -325,15 +326,20 @@ export async function runInit(
   const scriptType = options?.script ?? (process.platform === "win32" ? "ps" : "sh");
   await fs.writeFile(
     path.join(root, "init-options.json"),
-    `${JSON.stringify({ ai: options?.ai ?? null, lang: options?.lang ?? "en", preset: options?.preset ?? null, script: scriptType }, null, 2)}\n`,
+    `${JSON.stringify({ ai: options?.ai ?? null, lang: options?.lang ?? "en", author: options?.author ?? null, preset: options?.preset ?? null, script: scriptType }, null, 2)}\n`,
     "utf8"
   );
 
   await copyDirIfMissing(path.join(projectScaffoldTemplates, "artifacts"), path.join(root, "templates"), copiedAssets);
   for (const artifact of artifactDefs) {
+    const markdownTemplatePath = path.join(root, "templates", `${artifact.name}.md`);
+    const templateHeadings =
+      (await fileExists(markdownTemplatePath))
+        ? extractRequiredHeadingsFromTemplate(await fs.readFile(markdownTemplatePath, "utf8"))
+        : [];
     const schema = {
       ...schemaTemplate(artifact.name),
-      x_required_headings: artifact.required_headings
+      x_required_headings: templateHeadings.length > 0 ? templateHeadings : artifact.required_headings
     };
     await writeFileIfMissing(path.join(root, "schemas", `${artifact.name}.yaml`), yaml.dump(schema));
     await writeFileIfMissing(path.join(root, "prompts", `${artifact.name}.md`), `${promptTemplate(artifact.name, options?.lang ?? "en")}\n`);
@@ -385,7 +391,8 @@ export async function runInit(
   await syncRegistry(cwd);
   const settingsPath = await writeSettings(cwd, {
     lang: (options?.lang ?? "en").trim() || "en",
-    ai: options?.ai
+    ai: options?.ai,
+    author: (options?.author ?? "").trim() || undefined
   });
   return { installedAgentFiles, settingsPath };
 }

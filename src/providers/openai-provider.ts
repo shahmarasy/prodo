@@ -37,7 +37,8 @@ export class OpenAIProvider implements LLMProvider {
     const system =
       mode === "normalize"
         ? `You normalize messy human product briefs into strict JSON.
-Return valid JSON only, no markdown. Include confidence scores (0..1) for critical fields.`
+Return valid JSON only, no markdown. Include confidence scores (0..1) for critical fields.
+Preserve source language and Unicode characters exactly; never transliterate Turkish letters to ASCII.`
         : mode === "semantic_consistency"
           ? `You detect semantic inconsistencies between paired artifacts.
 Return valid JSON only: { "issues": [{level, code, check, contract_id, file, message, suggestion}] }.`

@@ -20,7 +20,8 @@ async function readSettings(cwd) {
         const parsed = JSON.parse(raw);
         return {
             lang: typeof parsed.lang === "string" && parsed.lang.trim() ? parsed.lang.trim() : "en",
-            ai: typeof parsed.ai === "string" && parsed.ai.trim() ? parsed.ai.trim() : undefined
+            ai: typeof parsed.ai === "string" && parsed.ai.trim() ? parsed.ai.trim() : undefined,
+            author: typeof parsed.author === "string" && parsed.author.trim() ? parsed.author.trim() : undefined
         };
     }
     catch {

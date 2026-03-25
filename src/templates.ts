@@ -347,6 +347,8 @@ Return JSON object with keys:
 Rules:
 - do NOT invent missing critical content
 - keep wording concise and concrete
+- preserve original language and Unicode characters exactly from brief
+- never transliterate Turkish letters (ç, ğ, ı, İ, ö, ş, ü) into ASCII
 - if critical field is missing, return empty and low confidence (<0.7)
 - assign deterministic IDs: goals => G1..Gn, features => F1..Fn, constraints => C1..Cn
 - input files are read-only; never modify, summarize, or rewrite \`brief.md\` in-place

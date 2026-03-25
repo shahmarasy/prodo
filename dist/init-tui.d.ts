@@ -3,12 +3,14 @@ export type InitSelections = {
     ai?: SupportedAi;
     script: "sh" | "ps";
     lang: "tr" | "en";
+    author: string;
     interactive: boolean;
 };
 type GatherInitUiOptions = {
     projectRoot: string;
     aiInput?: string;
     langInput?: string;
+    authorInput?: string;
 };
 export declare function gatherInitSelections(options: GatherInitUiOptions): Promise<InitSelections>;
 export declare function finishInitInteractive(summary: {
@@ -16,5 +18,6 @@ export declare function finishInitInteractive(summary: {
     settingsPath: string;
     ai?: SupportedAi;
     lang: "tr" | "en";
+    author: string;
 }): Promise<void>;
 export {};

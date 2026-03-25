@@ -59,10 +59,6 @@ export async function validateSchema(
   }
 
   const sections = sectionTextMap(doc.body);
-  const trMode = String((doc.frontmatter as Record<string, unknown>).language ?? "").toLowerCase().startsWith("tr");
-  if (trMode) {
-    return { issues, requiredHeadings: [] };
-  }
   for (const heading of requiredHeadings) {
     if (!doc.body.includes(heading)) {
       issues.push({

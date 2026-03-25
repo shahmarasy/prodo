@@ -19,7 +19,7 @@ import { extractRequiredHeadingsFromTemplate, resolveCompanionTemplate, resolveT
 import { readSettings } from "./settings";
 import { sectionTextMap } from "./markdown";
 import type { ArtifactDoc, ArtifactType, ContractCoverage } from "./types";
-import { fileExists, isPathInside, listFilesSortedByMtime, readJsonFile, timestampSlug } from "./utils";
+import { artifactFileStamp, fileExists, isPathInside, listFilesSortedByMtime, readJsonFile, timestampSlug } from "./utils";
 import { validateSchema } from "./validator";
 
 export type GenerateOptions = {
@@ -28,12 +28,11 @@ export type GenerateOptions = {
   normalizedBriefOverride?: string;
   outPath?: string;
   agent?: string;
+  revisionType?: "default" | "fix";
 };
 
 function defaultFilename(type: ArtifactType): string {
-  if (type === "workflow") return `${type}-${timestampSlug()}.md`;
-  if (type === "wireframe") return `${type}-${timestampSlug()}.md`;
-  return `${type}-${timestampSlug()}.md`;
+  return `${type}-${artifactFileStamp()}.md`;
 }
 
 function sidecarPath(filePath: string): string {
@@ -179,12 +178,196 @@ function renderWorkflowMermaidTemplate(
   );
 }
 
+function normalizeAuthor(author: string | undefined): string | undefined {
+  if (!author) return undefined;
+  const normalized = author.trim();
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function replaceAuthorPlaceholders(body: string, author: string | undefined): string {
+  const safeAuthor = normalizeAuthor(author);
+  if (!safeAuthor) return body;
+  return body.replace(/\{\{\s*author\s*\}\}/gi, safeAuthor);
+}
+
+function todayYmd(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function headingKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function defaultDocumentControlValues(
+  lang: string,
+  revisionType: "default" | "fix",
+  version: string,
+  author?: string
+): { version: string; date: string; author: string; description: string } {
+  const tr = lang.toLowerCase().startsWith("tr");
+  const safeAuthor = normalizeAuthor(author) ?? (tr ? "Prodo" : "Prodo");
+  const description = revisionType === "fix"
+    ? (tr ? "Dogrulama sonrasi duzeltme revizyonu" : "Post-validation fix revision")
+    : (tr ? "Ilk surum" : "Initial version");
+  return {
+    version,
+    date: todayYmd(),
+    author: safeAuthor,
+    description
+  };
+}
+
+function applyDocumentControlDefaults(
+  body: string,
+  options: { lang: string; revisionType: "default" | "fix"; version: string; author?: string }
+): string {
+  const defaults = defaultDocumentControlValues(options.lang, options.revisionType, options.version, options.author);
+  let out = body
+    .replace(/\{\{\s*date\s*\}\}/gi, defaults.date)
+    .replace(/\{\{\s*description\s*\}\}/gi, defaults.description)
+    .replace(/\{\{\s*version\s*\}\}/gi, defaults.version);
+
+  const lines = out.split(/\r?\n/);
+  const headingIndex = lines.findIndex((line) => {
+    const match = line.match(/^\s*##+\s+(.+?)\s*$/);
+    if (!match) return false;
+    const key = headingKey(match[1]);
+    return key.includes("document control") || key.includes("belge kontrol");
+  });
+  if (headingIndex === -1) return out;
+
+  const row = `| ${defaults.version} | ${defaults.date} | ${defaults.author} | ${defaults.description} |`;
+  let tableSeparatorIndex = -1;
+  let tableDataIndex = -1;
+
+  for (let i = headingIndex + 1; i < lines.length; i += 1) {
+    if (/^\s*##+\s+/.test(lines[i])) break;
+    if (tableSeparatorIndex === -1 && /\|/.test(lines[i]) && /-/.test(lines[i])) {
+      tableSeparatorIndex = i;
+      continue;
+    }
+    if (tableSeparatorIndex !== -1 && /^\s*\|/.test(lines[i])) {
+      tableDataIndex = i;
+      break;
+    }
+  }
+
+  if (tableDataIndex !== -1) {
+    lines[tableDataIndex] = row;
+  } else if (tableSeparatorIndex !== -1) {
+    lines.splice(tableSeparatorIndex + 1, 0, row);
+  } else {
+    lines.splice(headingIndex + 1, 0, "", "| Version | Date | Author | Description |", "|--------|------|--------|-------------|", row, "");
+  }
+
+  out = lines.join("\n");
+  return out;
+}
+
+function parseVersionToken(input: string): { major: number; minor: number } | null {
+  const match = input.match(/v?\s*(\d+)(?:\.(\d+))?/i);
+  if (!match) return null;
+  const major = Number(match[1]);
+  const minor = Number(match[2] ?? "0");
+  if (!Number.isFinite(major) || !Number.isFinite(minor)) return null;
+  return { major, minor };
+}
+
+function extractDocumentControlVersion(body: string): string | undefined {
+  const tableMatch = body.match(/\|\s*(v?\d+(?:\.\d+)?)\s*\|/i);
+  if (tableMatch?.[1]) return tableMatch[1].trim().startsWith("v") ? tableMatch[1].trim() : `v${tableMatch[1].trim()}`;
+  const looseMatch = body.match(/\bv?\d+\.\d+\b/i);
+  if (looseMatch?.[0]) return looseMatch[0].startsWith("v") ? looseMatch[0] : `v${looseMatch[0]}`;
+  return undefined;
+}
+
+async function resolveDocumentControlVersion(
+  cwd: string,
+  artifactType: ArtifactType,
+  revisionType: "default" | "fix"
+): Promise<string> {
+  if (revisionType !== "fix") return "v1.0";
+
+  const activePath = await getActiveArtifactPath(cwd, artifactType);
+  const fallbackPath = activePath ?? (await loadLatestArtifactPath(cwd, artifactType));
+  if (!fallbackPath || !(await fileExists(fallbackPath))) {
+    return "v1.1";
+  }
+
+  try {
+    const previous = await loadArtifactDoc(fallbackPath);
+    const previousVersion = extractDocumentControlVersion(previous.body) ?? String(previous.frontmatter.version ?? "");
+    const parsed = parseVersionToken(previousVersion);
+    if (!parsed) return "v1.1";
+    return `v${parsed.major}.${parsed.minor + 1}`;
+  } catch {
+    return "v1.1";
+  }
+}
+
+function enforceAuthorInControlTables(body: string, author: string | undefined): string {
+  const safeAuthor = normalizeAuthor(author);
+  if (!safeAuthor) return body;
+  return body.replace(
+    /(\|\s*v?[0-9.]+\s*\|\s*[^|]*\|\s*)([^|]*)(\|\s*[^|]*\|)/gi,
+    (_match, left: string, _current: string, right: string) => `${left}${safeAuthor} ${right}`
+  );
+}
+
+async function resolveUniqueOutputPath(targetDir: string, fileName: string): Promise<string> {
+  const parsed = path.parse(fileName);
+  let candidate = path.join(targetDir, fileName);
+  let index = 2;
+  while (await fileExists(candidate)) {
+    candidate = path.join(targetDir, `${parsed.name}-${String(index).padStart(2, "0")}${parsed.ext}`);
+    index += 1;
+  }
+  return candidate;
+}
+
+function workflowFeatureTargets(
+  normalized: NormalizedBrief,
+  coverage: ContractCoverage
+): Array<{ id: string; text: string }> {
+  const byId = new Map(normalized.contracts.core_features.map((item) => [item.id, item]));
+  const explicit = coverage.core_features
+    .map((id) => byId.get(id))
+    .filter((item): item is { id: string; text: string } => Boolean(item));
+
+  if (explicit.length > 1) return explicit;
+  if (normalized.contracts.core_features.length > 1) return normalized.contracts.core_features.slice(0, 6);
+  if (explicit.length === 1) return explicit;
+  return normalized.contracts.core_features.slice(0, 1);
+}
+
+function renderWorkflowMarkdownForFeature(
+  markdown: string,
+  feature: { id: string; text: string },
+  lang: string
+): string {
+  const tr = lang.toLowerCase().startsWith("tr");
+  const noteHeading = tr ? "## Akis Odagi" : "## Flow Focus";
+  const noteLine = tr
+    ? `- [${feature.id}] Bu akis ${feature.text} ihtiyacina odaklanir.`
+    : `- [${feature.id}] This flow focuses on ${feature.text}.`;
+  if (markdown.includes(noteHeading)) return markdown;
+  return `${markdown.trim()}\n\n${noteHeading}\n${noteLine}`.trim();
+}
+
 async function resolvePrompt(
   cwd: string,
   artifactType: ArtifactType,
   templateContent: string,
   requiredHeadings: string[],
   companionTemplate: { path: string; content: string } | null,
+  outputAuthor: string | undefined,
   agent?: string
 ): Promise<string> {
   const base = await fs.readFile(promptPath(cwd, artifactType), "utf8");
@@ -228,12 +411,19 @@ Wireframe paired output contract (STRICT):
 - Generate companion HTML screens based on native wireframe template.
 - HTML must stay low-fidelity and structure-first.`
       : "";
+  const authorPolicy = outputAuthor && outputAuthor.trim().length > 0
+    ? `
+Author policy (STRICT):
+- Use this exact author name wherever author is required: ${outputAuthor.trim()}
+- Do not invent random author names.`
+    : "";
   const withTemplate = `${base}
 
 ${authority}
 ${companionAuthority}
 ${workflowPairing}
-${wireframePairing}`;
+${wireframePairing}
+${authorPolicy}`;
   if (!agent) return withTemplate;
   return `${withTemplate}
 
@@ -428,6 +618,62 @@ function splitWorkflowPair(raw: string): { markdown: string; mermaid: string } {
   return { markdown, mermaid };
 }
 
+async function writeWorkflowFlows(
+  targetDir: string,
+  baseName: string,
+  normalized: NormalizedBrief,
+  coverage: ContractCoverage,
+  lang: string,
+  markdownBody: string,
+  mermaidBody: string | null,
+  mermaidTemplateContent: string | null
+): Promise<{ primaryPath: string; summaryBody: string; rendered: Array<{ mdPath: string; body: string }> }> {
+  const targets = workflowFeatureTargets(normalized, coverage);
+  const fallbackFeature = normalized.contracts.core_features[0] ?? { id: "F1", text: "Primary flow" };
+  const flows = targets.length > 0 ? targets : [fallbackFeature];
+  const summaryBodies: string[] = [];
+  const renderedArtifacts: Array<{ mdPath: string; body: string }> = [];
+  let primaryMdPath = "";
+
+  for (const [index, flowFeature] of flows.entries()) {
+    const flowBase =
+      flows.length === 1
+        ? baseName
+        : (index === 0
+            ? baseName
+            : `${baseName}-${index + 1}-${toSlug(extractTurkishTitle(flowFeature.text))}`);
+    const mdPath = path.join(targetDir, `${flowBase}.md`);
+    const mmdPath = path.join(targetDir, `${flowBase}.mmd`);
+    const featureCoverage: ContractCoverage = {
+      ...coverage,
+      core_features: [flowFeature.id]
+    };
+    const renderedMarkdown = renderWorkflowMarkdownForFeature(markdownBody, flowFeature, lang);
+    const renderedMermaid = (mermaidTemplateContent && mermaidTemplateContent.trim().length > 0)
+      ? renderWorkflowMermaidTemplate(mermaidTemplateContent, normalized, featureCoverage, lang).trim()
+      : (mermaidBody ?? "").trim();
+
+    if (!/(^|\n)\s*(flowchart|graph)\s+/i.test(renderedMermaid)) {
+      throw new UserError("Workflow Mermaid output is invalid.");
+    }
+
+    enforceLanguage(renderedMarkdown, lang, "workflow");
+    enforceLanguage(renderedMermaid, lang, "workflow");
+    await fs.writeFile(mdPath, `${renderedMarkdown}\n`, "utf8");
+    await fs.writeFile(mmdPath, `${renderedMermaid}\n`, "utf8");
+
+    if (!primaryMdPath) primaryMdPath = mdPath;
+    summaryBodies.push(renderedMarkdown);
+    renderedArtifacts.push({ mdPath, body: renderedMarkdown });
+  }
+
+  return {
+    primaryPath: primaryMdPath,
+    summaryBody: summaryBodies.join("\n\n"),
+    rendered: renderedArtifacts
+  };
+}
+
 async function writeWireframeScreens(
   targetDir: string,
   baseName: string,
@@ -438,10 +684,17 @@ async function writeWireframeScreens(
   htmlTemplateContent: string | null
 ): Promise<{ primaryPath: string; summaryBody: string }> {
   const tr = lang.toLowerCase().startsWith("tr");
-  const screenContracts = normalized.contracts.core_features
+  const explicitScreens = normalized.contracts.core_features
     .filter((item) => coverage.core_features.includes(item.id))
     .slice(0, 6);
-  const screens = screenContracts.length > 0 ? screenContracts : normalized.contracts.core_features.slice(0, 3);
+  const screens =
+    explicitScreens.length > 1
+      ? explicitScreens
+      : (normalized.contracts.core_features.length > 1
+          ? normalized.contracts.core_features.slice(0, 6)
+          : (explicitScreens.length === 1
+              ? explicitScreens
+              : normalized.contracts.core_features.slice(0, 1)));
   const summaryBodies: string[] = [];
   let primaryMdPath = "";
   for (const [index, screen] of screens.entries()) {
@@ -568,9 +821,11 @@ async function writeWireframeScreens(
 
 export async function generateArtifact(options: GenerateOptions): Promise<string> {
   const { cwd, artifactType, outPath, agent } = options;
+  const revisionType = options.revisionType ?? "default";
   const def = await getArtifactDefinition(cwd, artifactType);
   const normalizedPath = options.normalizedBriefOverride ?? normalizedBriefPath(cwd);
   await ensurePipelinePrereqs(cwd, normalizedPath);
+  const documentControlVersion = await resolveDocumentControlVersion(cwd, artifactType, revisionType);
 
   const settings = await readSettings(cwd);
   const normalizedBriefRaw = await readJsonFile<Record<string, unknown>>(normalizedPath);
@@ -608,6 +863,7 @@ export async function generateArtifact(options: GenerateOptions): Promise<string
     template?.content ?? "",
     computedHeadings,
     companionTemplate,
+    settings.author,
     agent
   );
   const provider = createProvider();
@@ -628,17 +884,24 @@ export async function generateArtifact(options: GenerateOptions): Promise<string
       templatePath: template?.path ?? "",
       companionTemplateContent: companionTemplate?.content ?? "",
       companionTemplatePath: companionTemplate?.path ?? "",
-      outputLanguage: settings.lang
+      outputLanguage: settings.lang,
+      outputAuthor: settings.author
     },
     schemaHint
   );
 
-  let generatedBody = generated.body.trim();
+  let generatedBody = enforceAuthorInControlTables(
+    replaceAuthorPlaceholders(generated.body.trim(), settings.author),
+    settings.author
+  );
   let workflowMermaidBody: string | null = null;
   if (artifactType === "workflow") {
     const paired = splitWorkflowPair(generatedBody);
-    generatedBody = paired.markdown;
-    workflowMermaidBody = paired.mermaid;
+    generatedBody = enforceAuthorInControlTables(
+      replaceAuthorPlaceholders(paired.markdown, settings.author),
+      settings.author
+    );
+    workflowMermaidBody = replaceAuthorPlaceholders(paired.mermaid, settings.author);
   }
   let contractCoverage = extractCoverageFromBody(generatedBody);
 
@@ -660,6 +923,13 @@ export async function generateArtifact(options: GenerateOptions): Promise<string
     }
   }
 
+  generatedBody = applyDocumentControlDefaults(generatedBody, {
+    lang: settings.lang,
+    revisionType,
+    version: documentControlVersion,
+    author: settings.author
+  });
+
   if (artifactType === "workflow" && companionTemplate?.content) {
     workflowMermaidBody = renderWorkflowMermaidTemplate(
       companionTemplate.content,
@@ -667,6 +937,7 @@ export async function generateArtifact(options: GenerateOptions): Promise<string
       contractCoverage,
       settings.lang
     ).trim();
+    workflowMermaidBody = replaceAuthorPlaceholders(workflowMermaidBody, settings.author);
   }
 
   enforceLanguage(generatedBody, settings.lang, artifactType);
@@ -691,10 +962,14 @@ export async function generateArtifact(options: GenerateOptions): Promise<string
     status: DEFAULT_STATUS,
     upstream_artifacts: upstreamArtifacts.map((item) => item.file),
     contract_coverage: contractCoverage,
-    language: settings.lang
+    language: settings.lang,
+    ...(normalizeAuthor(settings.author) ? { author: normalizeAuthor(settings.author) } : {})
   } as Record<string, unknown>;
 
   const mergedFrontmatter = { ...frontmatter, ...(generated.frontmatter ?? {}) };
+  if (normalizeAuthor(settings.author)) {
+    mergedFrontmatter.author = normalizeAuthor(settings.author);
+  }
   let doc: ArtifactDoc = {
     frontmatter: mergedFrontmatter,
     body: generatedBody
@@ -708,29 +983,49 @@ export async function generateArtifact(options: GenerateOptions): Promise<string
   }
 
   const targetDir = outputDirPath(cwd, artifactType, def.output_dir);
-  const finalPath = outPath ? path.resolve(cwd, outPath) : path.join(targetDir, defaultFilename(artifactType));
+  const finalPath = outPath
+    ? path.resolve(cwd, outPath)
+    : await resolveUniqueOutputPath(targetDir, defaultFilename(artifactType));
   if (!isPathInside(path.join(cwd, "product-docs"), finalPath)) {
     throw new UserError("Artifact output must be inside `product-docs/`.");
   }
   await fs.mkdir(path.dirname(finalPath), { recursive: true });
   if (artifactType === "workflow") {
     const basePath = path.join(path.dirname(finalPath), path.parse(finalPath).name);
-    const mdPath = `${basePath}.md`;
-    const mmdPath = `${basePath}.mmd`;
-    await fs.writeFile(mdPath, matter.stringify(doc.body, doc.frontmatter), "utf8");
-    await fs.writeFile(mmdPath, `${(workflowMermaidBody ?? "").trim()}\n`, "utf8");
-    await writeSidecar(mdPath, doc);
-    const derivedContext = {
-      artifact_type: artifactType,
-      artifact_file: mdPath,
-      generated_at: new Date().toISOString(),
-      contract_coverage: contractCoverage,
-      ...deriveStructuredContext(artifactType, doc.body, schemaHint.requiredHeadings)
-    };
+    const workflow = await writeWorkflowFlows(
+      path.dirname(basePath),
+      path.parse(basePath).name,
+      normalizedBrief,
+      contractCoverage,
+      settings.lang,
+      doc.body,
+      workflowMermaidBody,
+      companionTemplate?.content ?? null
+    );
     await fs.mkdir(outputContextDirPath(cwd), { recursive: true });
-    await fs.writeFile(contextFilePath(cwd, mdPath), `${JSON.stringify(derivedContext, null, 2)}\n`, "utf8");
-    await setActiveArtifact(cwd, artifactType, mdPath);
-    return mdPath;
+    for (const rendered of workflow.rendered) {
+      const renderedDoc: ArtifactDoc = {
+        frontmatter: doc.frontmatter,
+        body: rendered.body
+      };
+      await fs.writeFile(rendered.mdPath, matter.stringify(renderedDoc.body, renderedDoc.frontmatter), "utf8");
+      await writeSidecar(rendered.mdPath, renderedDoc);
+      const renderedContext = {
+        artifact_type: artifactType,
+        artifact_file: rendered.mdPath,
+        generated_at: new Date().toISOString(),
+        contract_coverage: contractCoverage,
+        ...deriveStructuredContext(artifactType, renderedDoc.body, schemaHint.requiredHeadings)
+      };
+      await fs.writeFile(contextFilePath(cwd, rendered.mdPath), `${JSON.stringify(renderedContext, null, 2)}\n`, "utf8");
+    }
+    const primaryRendered = workflow.rendered.find((item) => item.mdPath === workflow.primaryPath) ?? workflow.rendered[0];
+    doc = {
+      frontmatter: doc.frontmatter,
+      body: primaryRendered?.body ?? doc.body
+    };
+    await setActiveArtifact(cwd, artifactType, workflow.primaryPath);
+    return workflow.primaryPath;
   } else if (artifactType === "wireframe") {
     const base = path.parse(finalPath).name;
     const wireframe = await writeWireframeScreens(

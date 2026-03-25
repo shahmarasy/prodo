@@ -1,4 +1,5 @@
 import path from "node:path";
+import os from "node:os";
 import { resolveAi, type SupportedAi } from "./agent-command-installer";
 import { UserError } from "./errors";
 import { fileExists } from "./utils";
@@ -7,6 +8,7 @@ export type InitSelections = {
   ai?: SupportedAi;
   script: "sh" | "ps";
   lang: "tr" | "en";
+  author: string;
   interactive: boolean;
 };
 
@@ -14,6 +16,7 @@ type GatherInitUiOptions = {
   projectRoot: string;
   aiInput?: string;
   langInput?: string;
+  authorInput?: string;
 };
 
 type ClackPrompts = typeof import("@clack/prompts");
@@ -93,17 +96,31 @@ function modelChoiceFromAi(ai?: SupportedAi): "codex" | "gemini" | "auto-detect"
   return "auto-detect";
 }
 
+function defaultAuthorName(authorInput?: string): string {
+  const explicit = (authorInput ?? "").trim();
+  if (explicit.length > 0) return explicit;
+  try {
+    const username = os.userInfo().username.trim();
+    if (username.length > 0) return username;
+  } catch {
+    // ignore lookup errors and continue with fallback
+  }
+  return "Product Author";
+}
+
 export async function gatherInitSelections(options: GatherInitUiOptions): Promise<InitSelections> {
   const clack = await loadClack();
   const defaultLang = normalizeLang(options.langInput);
   const fallbackScript: "sh" | "ps" = process.platform === "win32" ? "ps" : "sh";
   const parsedAi = resolveAi(options.aiInput);
+  const defaultAuthor = defaultAuthorName(options.authorInput);
 
   if (!isInteractiveTerminal()) {
     return {
       ai: parsedAi,
       script: fallbackScript,
       lang: defaultLang,
+      author: defaultAuthor,
       interactive: false
     };
   }
@@ -153,6 +170,16 @@ export async function gatherInitSelections(options: GatherInitUiOptions): Promis
     throw new UserError("Initialization cancelled.");
   }
 
+  const author = await clack.text({
+    message: "Author name",
+    placeholder: "Shahmarasy",
+    defaultValue: defaultAuthor
+  });
+  if (clack.isCancel(author)) {
+    clack.cancel("Initialization cancelled.");
+    throw new UserError("Initialization cancelled.");
+  }
+
   let selectedAi: SupportedAi | undefined;
   if (model === "codex") selectedAi = "codex";
   else if (model === "gemini") selectedAi = "gemini-cli";
@@ -162,6 +189,7 @@ export async function gatherInitSelections(options: GatherInitUiOptions): Promis
     ai: selectedAi,
     script: fallbackScript,
     lang,
+    author: String(author).trim() || defaultAuthor,
     interactive: true
   };
 }
@@ -171,9 +199,10 @@ export function finishInitInteractive(summary: {
   settingsPath: string;
   ai?: SupportedAi;
   lang: "tr" | "en";
+  author: string;
 }): Promise<void> {
   const aiText = summary.ai ?? "none";
   return loadClack().then((clack) => clack.outro(
-    `Scaffold complete.\nAI: ${aiText}\nLanguage: ${summary.lang}\nSettings: ${summary.settingsPath}\nNext: edit brief.md`
+    `Scaffold complete.\nAI: ${aiText}\nLanguage: ${summary.lang}\nAuthor: ${summary.author}\nSettings: ${summary.settingsPath}\nNext: edit brief.md`
   ));
 }

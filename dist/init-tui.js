@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.gatherInitSelections = gatherInitSelections;
 exports.finishInitInteractive = finishInitInteractive;
 const node_path_1 = __importDefault(require("node:path"));
+const node_os_1 = __importDefault(require("node:os"));
 const agent_command_installer_1 = require("./agent-command-installer");
 const errors_1 = require("./errors");
 const utils_1 = require("./utils");
@@ -75,16 +76,32 @@ function modelChoiceFromAi(ai) {
         return "gemini";
     return "auto-detect";
 }
+function defaultAuthorName(authorInput) {
+    const explicit = (authorInput ?? "").trim();
+    if (explicit.length > 0)
+        return explicit;
+    try {
+        const username = node_os_1.default.userInfo().username.trim();
+        if (username.length > 0)
+            return username;
+    }
+    catch {
+        // ignore lookup errors and continue with fallback
+    }
+    return "Product Author";
+}
 async function gatherInitSelections(options) {
     const clack = await loadClack();
     const defaultLang = normalizeLang(options.langInput);
     const fallbackScript = process.platform === "win32" ? "ps" : "sh";
     const parsedAi = (0, agent_command_installer_1.resolveAi)(options.aiInput);
+    const defaultAuthor = defaultAuthorName(options.authorInput);
     if (!isInteractiveTerminal()) {
         return {
             ai: parsedAi,
             script: fallbackScript,
             lang: defaultLang,
+            author: defaultAuthor,
             interactive: false
         };
     }
@@ -129,6 +146,15 @@ async function gatherInitSelections(options) {
         clack.cancel("Initialization cancelled.");
         throw new errors_1.UserError("Initialization cancelled.");
     }
+    const author = await clack.text({
+        message: "Author name",
+        placeholder: "Shahmarasy",
+        defaultValue: defaultAuthor
+    });
+    if (clack.isCancel(author)) {
+        clack.cancel("Initialization cancelled.");
+        throw new errors_1.UserError("Initialization cancelled.");
+    }
     let selectedAi;
     if (model === "codex")
         selectedAi = "codex";
@@ -140,10 +166,11 @@ async function gatherInitSelections(options) {
         ai: selectedAi,
         script: fallbackScript,
         lang,
+        author: String(author).trim() || defaultAuthor,
         interactive: true
     };
 }
 function finishInitInteractive(summary) {
     const aiText = summary.ai ?? "none";
-    return loadClack().then((clack) => clack.outro(`Scaffold complete.\nAI: ${aiText}\nLanguage: ${summary.lang}\nSettings: ${summary.settingsPath}\nNext: edit brief.md`));
+    return loadClack().then((clack) => clack.outro(`Scaffold complete.\nAI: ${aiText}\nLanguage: ${summary.lang}\nAuthor: ${summary.author}\nSettings: ${summary.settingsPath}\nNext: edit brief.md`));
 }

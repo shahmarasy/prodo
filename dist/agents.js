@@ -32,7 +32,8 @@ async function loadAgentCommandSet(_cwd, agent) {
             { command: `${prefix}-wireframe`, purpose: "Generate wireframe artifact." },
             { command: `${prefix}-stories`, purpose: "Generate stories artifact." },
             { command: `${prefix}-techspec`, purpose: "Generate techspec artifact." },
-            { command: `${prefix}-validate`, purpose: "Run validation report." }
+            { command: `${prefix}-validate`, purpose: "Run validation report." },
+            { command: `${prefix}-fix`, purpose: "Fix artifacts when validation fails." }
         ],
         artifact_shortcuts: {
             normalize: `${prefix}-normalize`,
@@ -41,7 +42,8 @@ async function loadAgentCommandSet(_cwd, agent) {
             wireframe: `${prefix}-wireframe`,
             stories: `${prefix}-stories`,
             techspec: `${prefix}-techspec`,
-            validate: `${prefix}-validate`
+            validate: `${prefix}-validate`,
+            fix: `${prefix}-fix`
         }
     };
 }

@@ -29,6 +29,8 @@ function mapForcedCommand(forcedCommand) {
         return "validate";
     if (forcedCommand === "prodo-normalize")
         return "normalize";
+    if (forcedCommand === "prodo-fix")
+        return "fix";
     if (forcedCommand === "prodo-prd")
         return "prd";
     if (forcedCommand === "prodo-workflow")
@@ -49,7 +51,8 @@ async function runArtifactCommand(type, opts, cwd, log, options) {
         cwd,
         normalizedBriefOverride: opts.from,
         outPath: opts.out,
-        agent
+        agent,
+        revisionType: opts.revisionType
     });
     const agentMsg = agent ? ` [agent=${agent}]` : "";
     log(`${type.toUpperCase()} generated${agentMsg}: ${file}`);
@@ -100,13 +103,15 @@ async function runCli(options = {}) {
         .command("init [target]")
         .option("--ai <name>", "agent integration: codex | gemini-cli | claude-cli")
         .option("--lang <code>", "document language (e.g. en, tr)")
+        .option("--author <name>", "document author name")
         .option("--preset <name>", "preset to install during initialization")
         .action(async (target, opts) => {
         const projectRoot = node_path_1.default.resolve(cwd, target ?? ".");
         const selected = await (0, init_tui_1.gatherInitSelections)({
             projectRoot,
             aiInput: opts.ai,
-            langInput: opts.lang
+            langInput: opts.lang,
+            authorInput: opts.author
         });
         const selectedAi = selected.ai;
         if (selected.interactive) {
@@ -116,6 +121,7 @@ async function runCli(options = {}) {
             const result = await (0, init_1.runInit)(projectRoot, {
                 ai: selectedAi,
                 lang: selected.lang,
+                author: selected.author,
                 preset: opts.preset,
                 script: selected.script
             });
@@ -124,13 +130,15 @@ async function runCli(options = {}) {
                 projectRoot,
                 settingsPath: result.settingsPath,
                 ai: selectedAi,
-                lang: selected.lang
+                lang: selected.lang,
+                author: selected.author
             });
             return;
         }
         const result = await (0, init_1.runInit)(projectRoot, {
             ai: selectedAi,
             lang: selected.lang,
+            author: selected.author,
             preset: opts.preset,
             script: selected.script
         });
@@ -144,6 +152,7 @@ async function runCli(options = {}) {
             out("No agent selected. Use `prodo generate` for end-to-end generation.");
         }
         out(`Settings file: ${result.settingsPath}`);
+        out(`Author: ${selected.author}`);
         out("Next: edit brief.md.");
     });
     program
@@ -175,6 +184,51 @@ async function runCli(options = {}) {
                 throw new errors_1.UserError("Validation failed. Review report and fix issues.");
             }
             out("Generation pipeline completed. Validation passed.");
+            await (0, hook_executor_1.runHookPhase)(cwd, "after_validate", out);
+        });
+    });
+    program
+        .command("fix", { hidden: true })
+        .description("Advanced: auto-regenerate affected artifacts from validation findings")
+        .option("--agent <name>", "agent profile: codex | gemini-cli | claude-cli")
+        .option("--strict", "treat validation warnings as errors")
+        .option("--report <path>", "validation report output path")
+        .action(async (opts) => {
+        if (opts.agent)
+            (0, agents_1.resolveAgent)(opts.agent);
+        await withBriefReadOnlyGuard(cwd, async () => {
+            await (0, hook_executor_1.runHookPhase)(cwd, "before_validate", out);
+            const initial = await (0, validate_1.runValidate)(cwd, {
+                strict: Boolean(opts.strict),
+                report: opts.report
+            });
+            out(`Validation report written to: ${initial.reportPath}`);
+            await (0, hook_executor_1.runHookPhase)(cwd, "after_validate", out);
+            if (initial.pass) {
+                out("No blocking issues found. Nothing to fix.");
+                return;
+            }
+            const targets = await resolveFixTargets(cwd, artifactTypes, initial.issues);
+            out(`Validation failed. Regenerating impacted artifacts: ${targets.join(", ")}`);
+            await (0, hook_executor_1.runHookPhase)(cwd, "before_normalize", out);
+            const normalizedPath = await (0, normalize_1.runNormalize)({ cwd });
+            out(`Normalized brief refreshed: ${normalizedPath}`);
+            await (0, hook_executor_1.runHookPhase)(cwd, "after_normalize", out);
+            for (const type of targets) {
+                await runArtifactCommand(type, { from: normalizedPath, agent: opts.agent, revisionType: "fix" }, cwd, out, {
+                    suggestValidate: false
+                });
+            }
+            await (0, hook_executor_1.runHookPhase)(cwd, "before_validate", out);
+            const final = await (0, validate_1.runValidate)(cwd, {
+                strict: Boolean(opts.strict),
+                report: opts.report
+            });
+            out(`Validation report written to: ${final.reportPath}`);
+            if (!final.pass) {
+                throw new errors_1.UserError("Fix completed but validation is still failing. Review report and retry.");
+            }
+            out("Fix pipeline completed. Validation passed.");
             await (0, hook_executor_1.runHookPhase)(cwd, "after_validate", out);
         });
     });
@@ -276,6 +330,9 @@ async function runCli(options = {}) {
             else if (forced === "validate") {
                 await program.parseAsync(["node", "prodo", "validate", ...argv.slice(2)]);
             }
+            else if (forced === "fix") {
+                await program.parseAsync(["node", "prodo", "fix", ...argv.slice(2)]);
+            }
             else {
                 await program.parseAsync(["node", "prodo", forced, ...argv.slice(2)]);
             }
@@ -299,4 +356,24 @@ if (require.main === module) {
     runCli().then((code) => {
         process.exitCode = code;
     });
+}
+async function resolveFixTargets(cwd, artifactTypes, issues) {
+    const direct = new Set(issues
+        .map((issue) => issue.artifactType)
+        .filter((artifactType) => typeof artifactType === "string" && artifactTypes.includes(artifactType)));
+    if (direct.size === 0)
+        return artifactTypes;
+    const defs = await (0, artifact_registry_1.listArtifactDefinitions)(cwd);
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const def of defs) {
+            const needsRefresh = def.upstream.some((upstream) => direct.has(upstream));
+            if (needsRefresh && !direct.has(def.name)) {
+                direct.add(def.name);
+                changed = true;
+            }
+        }
+    }
+    return artifactTypes.filter((artifactType) => direct.has(artifactType));
 }

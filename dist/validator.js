@@ -45,10 +45,6 @@ async function validateSchema(cwd, artifactType, doc, requiredHeadingsOverride) 
         }
     }
     const sections = (0, markdown_1.sectionTextMap)(doc.body);
-    const trMode = String(doc.frontmatter.language ?? "").toLowerCase().startsWith("tr");
-    if (trMode) {
-        return { issues, requiredHeadings: [] };
-    }
     for (const heading of requiredHeadings) {
         if (!doc.body.includes(heading)) {
             issues.push({

@@ -1,4 +1,4 @@
-import { UserError } from "./errors";
+import { UserError } from "../core/errors";
 
 export const AGENT_IDS = ["codex", "gemini-cli", "claude-cli"] as const;
 export type AgentId = (typeof AGENT_IDS)[number];

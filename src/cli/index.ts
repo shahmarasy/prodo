@@ -2,21 +2,22 @@ import { Command } from "commander";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { loadAgentCommandSet, resolveAgent } from "./agents";
+import { loadAgentCommandSet, resolveAgent } from "./agent-ids";
 import { resolveAi, type SupportedAi } from "./agent-command-installer";
-import { listArtifactDefinitions, listArtifactTypes } from "./artifact-registry";
-import { generateArtifact } from "./artifacts";
+import { listArtifactDefinitions, listArtifactTypes } from "../core/artifact-registry";
+import { generateArtifact } from "../core/artifacts";
 import { runDoctor } from "./doctor";
-import { UserError } from "./errors";
-import { runHookPhase } from "./hook-executor";
+import { UserError } from "../core/errors";
+import { runHookPhase } from "../core/hook-executor";
 import { runInit } from "./init";
 import { finishInitInteractive, gatherInitSelections } from "./init-tui";
-import { runNormalize } from "./normalize";
-import { briefPath } from "./paths";
-import { type ArtifactType } from "./types";
-import { fileExists } from "./utils";
-import { runValidate } from "./validate";
-import { readCliVersion } from "./version";
+import { runNormalize } from "../core/normalize";
+import { runInteractiveNormalize } from "./normalize-interactive";
+import { briefPath } from "../core/paths";
+import { type ArtifactType } from "../core/types";
+import { fileExists } from "../core/utils";
+import { runValidate } from "../core/validate";
+import { readCliVersion } from "../core/version";
 
 type RunOptions = {
   forcedCommand?: string;
@@ -262,15 +263,14 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
     .option("--brief <path>", "path to start brief markdown")
     .option("--out <path>", "output normalized brief json path")
     .option("--agent <name>", "agent profile: codex | gemini-cli | claude-cli")
-    .action(async (opts: { brief?: string; out?: string; agent?: string }) => {
+    .option("-i, --interactive", "interactively clarify low-confidence fields")
+    .action(async (opts: { brief?: string; out?: string; agent?: string; interactive?: boolean }) => {
       if (opts.agent) resolveAgent(opts.agent);
       await withBriefReadOnlyGuard(cwd, async () => {
         await runHookPhase(cwd, "before_normalize", out);
-        const outPath = await runNormalize({
-          cwd,
-          brief: opts.brief,
-          out: opts.out
-        });
+        const outPath = opts.interactive
+          ? await runInteractiveNormalize({ cwd, brief: opts.brief, out: opts.out, log: out })
+          : await runNormalize({ cwd, brief: opts.brief, out: opts.out });
         out(`Normalized brief written to: ${outPath}`);
         await runHookPhase(cwd, "after_normalize", out);
       });

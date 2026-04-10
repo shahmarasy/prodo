@@ -1,5 +1,5 @@
-import type { LLMProvider, ProviderSchemaHint } from "../types";
-import { UserError } from "../errors";
+import type { LLMProvider, ProviderSchemaHint } from "../core/types";
+import { UserError } from "../core/errors";
 
 type ChatResponse = {
   choices?: Array<{

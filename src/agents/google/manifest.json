@@ -1,0 +1,7 @@
+{
+  "name": "google",
+  "displayName": "Google Gemini",
+  "sdkRequired": "@google/generative-ai",
+  "envVars": ["GOOGLE_API_KEY"],
+  "defaultModel": "gemini-2.0-flash"
+}

@@ -1,8 +1,9 @@
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { prodoPath } from "./paths";
-import { fileExists } from "./utils";
-import { readCliVersion } from "./version";
+import { getGlobalRegistry } from "../agents/agent-registry";
+import { prodoPath } from "../core/paths";
+import { fileExists } from "../core/utils";
+import { readCliVersion } from "../core/version";
 
 type RowStatus = "available" | "not_found" | "ide";
 
@@ -104,11 +105,27 @@ export async function runDoctor(cwd: string, out: (line: string) => void): Promi
     }
   ];
 
-  const aiRows: DoctorRow[] = [
+  const aiCliRows: DoctorRow[] = [
     { name: "Codex CLI", status: codex ? "available" : "not_found", detail: codex ? "available" : "not found" },
     { name: "Gemini CLI", status: gemini ? "available" : "not_found", detail: gemini ? "available" : "not found" },
     { name: "Claude CLI", status: claude ? "available" : "not_found", detail: claude ? "available" : "not found" }
   ];
+
+  const registry = getGlobalRegistry();
+  const agentRows: DoctorRow[] = [];
+  for (const agent of registry.list()) {
+    if (agent.name === "mock") continue;
+    const available = await agent.isAvailable();
+    const config = agent.getConfig();
+    const sdkLabel = config.sdkRequired ? `SDK: ${config.sdkRequired}` : "";
+    const envLabel = config.envVars.filter((v) => !process.env[v]).map((v) => `${v} missing`).join(", ");
+    const detail = available ? "ready" : [sdkLabel, envLabel].filter(Boolean).join(", ") || "not configured";
+    agentRows.push({
+      name: config.displayName,
+      status: available ? "available" : "not_found",
+      detail
+    });
+  }
 
   const devRows: DoctorRow[] = [
     { name: "Git", status: git ? "available" : "not_found", detail: git ? "available" : "not found" },
@@ -128,8 +145,11 @@ export async function runDoctor(cwd: string, out: (line: string) => void): Promi
   out(color("Core", "\u001B[1m"));
   for (const line of renderRows(coreRows)) out(line);
   out("");
-  out(color("AI / Agents", "\u001B[1m"));
-  for (const line of renderRows(aiRows)) out(line);
+  out(color("AI CLI Tools", "\u001B[1m"));
+  for (const line of renderRows(aiCliRows)) out(line);
+  out("");
+  out(color("LLM Agents (SDK)", "\u001B[1m"));
+  for (const line of renderRows(agentRows)) out(line);
   out("");
   out(color("Dev Tools", "\u001B[1m"));
   for (const line of renderRows(devRows)) out(line);

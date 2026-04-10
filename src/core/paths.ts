@@ -70,3 +70,7 @@ export function outputContextDirPath(cwd: string): string {
   return path.join(prodoPath(cwd), "state", "context");
 }
 
+export function normHistoryPath(cwd: string): string {
+  return path.join(prodoPath(cwd), "_norm_history.json");
+}
+

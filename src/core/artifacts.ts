@@ -14,13 +14,14 @@ import {
   promptPath,
   prodoPath
 } from "./paths";
-import { createProvider } from "./providers";
+import { createProvider } from "../providers";
 import { extractRequiredHeadingsFromTemplate, resolveCompanionTemplate, resolveTemplate } from "./template-resolver";
 import { readSettings } from "./settings";
 import { sectionTextMap } from "./markdown";
 import type { ArtifactDoc, ArtifactType, ContractCoverage } from "./types";
 import { artifactFileStamp, fileExists, isPathInside, listFilesSortedByMtime, readJsonFile, timestampSlug } from "./utils";
 import { validateSchema } from "./validator";
+import { renderTemplate } from "./template-engine";
 
 export type GenerateOptions = {
   artifactType: ArtifactType;
@@ -134,12 +135,21 @@ function replaceTemplateTokens(
   replacements: Record<string, string>,
   fallbackFromToken: (token: string) => string
 ): string {
-  let out = template;
+  const context: Record<string, string> = {};
   for (const [key, value] of Object.entries(replacements)) {
-    out = out.replace(new RegExp(`\\{\\{\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\}\\}`, "g"), value);
+    const nunjucksKey = key.replace(/[^a-zA-Z0-9_]/g, "_");
+    context[nunjucksKey] = value;
   }
-  return out.replace(/\{\{\s*([^}]+)\s*\}\}/g, (_match, tokenRaw: string) => {
+
+  let prepared = template;
+  for (const [key, value] of Object.entries(replacements)) {
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    prepared = prepared.replace(new RegExp(`\\{\\{\\s*${escaped}\\s*\\}\\}`, "g"), value);
+  }
+
+  return prepared.replace(/\{\{\s*([^}]+)\s*\}\}/g, (_match, tokenRaw: string) => {
     const token = String(tokenRaw).trim();
+    if (token.includes("|") || token.includes("%")) return _match;
     return fallbackFromToken(token);
   });
 }

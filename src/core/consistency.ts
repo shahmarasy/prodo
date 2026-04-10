@@ -1,7 +1,7 @@
 import path from "node:path";
 import { listArtifactTypes, getArtifactDefinition } from "./artifact-registry";
 import { contractIds, parseNormalizedBriefOrThrow } from "./normalized-brief";
-import { createProvider } from "./providers";
+import { createProvider } from "../providers";
 import type { ArtifactDoc, ArtifactType, ContractCoverage, ValidationIssue } from "./types";
 
 type LoadedArtifact = {

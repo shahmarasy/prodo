@@ -3,14 +3,14 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import yaml from "js-yaml";
 import { installAgentCommands, type SupportedAi } from "./agent-command-installer";
-import { listArtifactDefinitions } from "./artifact-registry";
-import { ensureDir, fileExists } from "./utils";
-import { briefPath, outputDirPath, outputIndexPath, prodoPath } from "./paths";
+import { listArtifactDefinitions } from "../core/artifact-registry";
+import { ensureDir, fileExists } from "../core/utils";
+import { briefPath, outputDirPath, outputIndexPath, prodoPath } from "../core/paths";
 import { applyConfiguredPresets } from "./preset-loader";
-import { syncRegistry } from "./registry";
-import { writeSettings } from "./settings";
-import { extractRequiredHeadingsFromTemplate } from "./template-resolver";
-import { buildWorkflowCommands } from "./workflow-commands";
+import { syncRegistry } from "../core/registry";
+import { writeSettings } from "../core/settings";
+import { extractRequiredHeadingsFromTemplate } from "../core/template-resolver";
+import { buildWorkflowCommands } from "../core/workflow-commands";
 import {
   NORMALIZED_BRIEF_TEMPLATE,
   NORMALIZE_PROMPT_TEMPLATE,
@@ -20,7 +20,7 @@ import {
   commandTemplate,
   promptTemplate,
   schemaTemplate
-} from "./templates";
+} from "../core/templates";
 
 type AssetManifestItem = {
   source: string;
@@ -65,7 +65,7 @@ async function writeFileIfMissing(filePath: string, content: string): Promise<vo
 async function readProdoVersion(cwd: string): Promise<string> {
   const candidates = [
     path.join(cwd, "package.json"),
-    path.resolve(__dirname, "..", "package.json")
+    path.resolve(__dirname, "..", "..", "package.json")
   ];
   for (const candidate of candidates) {
     if (!(await fileExists(candidate))) continue;
@@ -292,7 +292,7 @@ export async function runInit(
   const workflowCommands = buildWorkflowCommands(artifactTypes);
   const prodoVersion = await readProdoVersion(cwd);
   const localRepoTemplates = path.join(cwd, "templates");
-  const packagedTemplates = path.resolve(__dirname, "..", "templates");
+  const packagedTemplates = path.resolve(__dirname, "..", "..", "templates");
   const projectScaffoldTemplates = (await fileExists(localRepoTemplates)) ? localRepoTemplates : packagedTemplates;
   const copiedAssets: Array<{ source: string; target: string; sha256: string }> = [];
   const backup: BackupMap = new Map();

@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import yaml from "js-yaml";
-import { UserError } from "./errors";
-import { ensureDir, fileExists } from "./utils";
+import { UserError } from "../core/errors";
+import { ensureDir, fileExists } from "../core/utils";
 
 export const AI_ALIASES: Record<string, "codex" | "gemini-cli" | "claude-cli"> = {
   codex: "codex",

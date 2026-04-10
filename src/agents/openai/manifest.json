@@ -1,0 +1,7 @@
+{
+  "name": "openai",
+  "displayName": "OpenAI",
+  "sdkRequired": "openai",
+  "envVars": ["OPENAI_API_KEY"],
+  "defaultModel": "gpt-4o-mini"
+}

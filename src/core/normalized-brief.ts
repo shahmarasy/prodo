@@ -193,6 +193,27 @@ export function requireConfidenceOrThrow(
   }
 }
 
+export type ConfidenceCheckResult = {
+  pass: boolean;
+  lowFields: Array<{ field: string; confidence: number; threshold: number }>;
+};
+
+export function checkConfidence(
+  brief: NormalizedBrief,
+  fields: Array<keyof Pick<NormalizedBrief, "product_name" | "problem" | "audience" | "goals" | "core_features">>,
+  threshold = 0.7
+): ConfidenceCheckResult {
+  const confidence = brief.confidence ?? {};
+  const lowFields = fields
+    .filter((field) => (confidence[field] ?? 0) < threshold)
+    .map((field) => ({
+      field,
+      confidence: confidence[field] ?? 0,
+      threshold
+    }));
+  return { pass: lowFields.length === 0, lowFields };
+}
+
 export function contractIds(contracts: BriefContracts): {
   goals: string[];
   core_features: string[];

@@ -36,7 +36,7 @@ async function runNode(args, cwd) {
 
 async function verify() {
   const root = path.resolve(__dirname, "..");
-  await mustExist(path.join(root, "dist", "cli.js"), "compiled CLI");
+  await mustExist(path.join(root, "dist", "cli", "index.js"), "compiled CLI");
   await mustExist(path.join(root, "templates", "commands", "prodo-normalize.md"), "command template");
   await mustExist(path.join(root, "templates", "artifacts", "prd.md"), "artifact template");
 
@@ -46,7 +46,7 @@ async function verify() {
 
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "prodo-release-check-"));
   try {
-    await runNode([path.join(root, "dist", "cli.js"), "init", tmp], root);
+    await runNode([path.join(root, "dist", "cli", "index.js"), "init", tmp], root);
     await mustExist(path.join(tmp, ".prodo", "commands", "prodo-normalize.md"), "scaffold command output");
     await mustExist(path.join(tmp, ".prodo", "registry.json"), "scaffold registry output");
     await mustExist(path.join(tmp, ".prodo", "state", "index.json"), "scaffold output index");

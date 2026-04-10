@@ -1,5 +1,5 @@
-import type { BriefContractItem } from "../normalized-brief";
-import type { LLMProvider, ProviderSchemaHint } from "../types";
+import type { BriefContractItem } from "../core/normalized-brief";
+import type { LLMProvider, ProviderSchemaHint } from "../core/types";
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];

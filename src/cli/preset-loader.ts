@@ -1,9 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import yaml from "js-yaml";
-import { UserError } from "./errors";
-import { readProjectConfig } from "./project-config";
-import { ensureDir, fileExists } from "./utils";
+import { UserError } from "../core/errors";
+import { readProjectConfig } from "../core/project-config";
+import { ensureDir, fileExists } from "../core/utils";
 
 type PresetManifest = {
   name: string;
@@ -115,7 +115,7 @@ async function collectPresetOps(
 async function resolvePresetDir(projectRoot: string, presetName: string): Promise<string> {
   const candidates = [
     path.join(projectRoot, "presets", presetName),
-    path.resolve(__dirname, "..", "presets", presetName)
+    path.resolve(__dirname, "..", "..", "presets", presetName)
   ];
   for (const candidate of candidates) {
     if (await fileExists(candidate)) return candidate;

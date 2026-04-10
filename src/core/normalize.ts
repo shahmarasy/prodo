@@ -7,7 +7,7 @@ import {
   requireConfidenceOrThrow
 } from "./normalized-brief";
 import { briefPath, normalizedBriefPath, prodoPath } from "./paths";
-import { createProvider } from "./providers";
+import { createProvider } from "../providers";
 import { readSettings } from "./settings";
 import { fileExists, isPathInside } from "./utils";
 
@@ -15,6 +15,7 @@ type NormalizeOptions = {
   cwd: string;
   brief?: string;
   out?: string;
+  additionalContext?: Record<string, string>;
 };
 
 function normalizedKey(value: string): string {
@@ -93,13 +94,18 @@ export async function runNormalize(options: NormalizeOptions): Promise<string> {
   const settings = await readSettings(cwd);
   const provider = createProvider();
 
+  const inputContext: Record<string, unknown> = {
+    briefMarkdown: rawBrief,
+    sourceBriefPath: inPath,
+    outputLanguage: settings.lang
+  };
+  if (options.additionalContext && Object.keys(options.additionalContext).length > 0) {
+    inputContext.userClarifications = options.additionalContext;
+  }
+
   const generated = await provider.generate(
     normalizePrompt,
-    {
-      briefMarkdown: rawBrief,
-      sourceBriefPath: inPath,
-      outputLanguage: settings.lang
-    },
+    inputContext,
     {
       artifactType: "normalize",
       requiredHeadings: [],
@@ -125,7 +131,6 @@ export async function runNormalize(options: NormalizeOptions): Promise<string> {
   };
 
   const normalized = parseNormalizedBriefOrThrow(withContracts);
-  requireConfidenceOrThrow(normalized, ["product_name", "problem", "audience", "goals", "core_features"], 0.7);
 
   const outPath = options.out ? path.resolve(cwd, options.out) : normalizedBriefPath(cwd);
   if (!isPathInside(prodoPath(cwd), outPath)) {
@@ -133,5 +138,8 @@ export async function runNormalize(options: NormalizeOptions): Promise<string> {
   }
   await fs.mkdir(path.dirname(outPath), { recursive: true });
   await fs.writeFile(outPath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+
+  requireConfidenceOrThrow(normalized, ["product_name", "problem", "audience", "goals", "core_features"], 0.7);
+
   return outPath;
 }

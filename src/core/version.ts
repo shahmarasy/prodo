@@ -5,7 +5,7 @@ import { fileExists } from "./utils";
 export async function readCliVersion(cwd: string): Promise<string> {
   const candidates = [
     path.join(cwd, "package.json"),
-    path.resolve(__dirname, "..", "package.json")
+    path.resolve(__dirname, "..", "..", "package.json")
   ];
   for (const candidate of candidates) {
     if (!(await fileExists(candidate))) continue;

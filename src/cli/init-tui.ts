@@ -1,8 +1,8 @@
 import path from "node:path";
 import os from "node:os";
 import { resolveAi, type SupportedAi } from "./agent-command-installer";
-import { UserError } from "./errors";
-import { fileExists } from "./utils";
+import { UserError } from "../core/errors";
+import { fileExists } from "../core/utils";
 
 export type InitSelections = {
   ai?: SupportedAi;

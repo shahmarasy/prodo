@@ -376,7 +376,7 @@ export async function runInit(
     throw error;
   }
 
-  const installedAgentFiles = options?.ai ? await installAgentCommands(cwd, options.ai) : [];
+  const installedAgentFiles = options?.ai ? await installAgentCommands(cwd, options.ai, options?.lang) : [];
   const manifest: ScaffoldManifest = {
     schema_version: "1.0",
     generated_at: new Date().toISOString(),

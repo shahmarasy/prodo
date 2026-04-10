@@ -122,7 +122,97 @@ async function loadCommandTemplateNames(commandTemplatesDir: string): Promise<st
     .sort();
 }
 
-export async function installAgentCommands(projectRoot: string, ai: SupportedAi): Promise<string[]> {
+function generateClaudeMd(projectRoot: string, lang: string): string {
+  const projectName = path.basename(projectRoot) || "Product";
+  return `# Prodo — Product Artifact Workspace
+
+This project uses **Prodo** to generate product documentation from a brief.
+
+## Project Structure
+
+- \`brief.md\` — Product brief (INPUT — read-only during generation)
+- \`product-docs/\` — Generated artifacts (OUTPUT)
+- \`.prodo/\` — Internal scaffold (templates, schemas, prompts, state)
+
+## Workflow
+
+Run commands in this sequence:
+
+1. \`/prodo-normalize\` — Parse brief into structured JSON
+2. \`/prodo-prd\` — Generate Product Requirements Document
+3. \`/prodo-workflow\` — Generate workflow diagrams (Markdown + Mermaid)
+4. \`/prodo-wireframe\` — Generate wireframes (Markdown + HTML)
+5. \`/prodo-stories\` — Generate user stories with Gherkin scenarios
+6. \`/prodo-techspec\` — Generate technical specification
+7. \`/prodo-validate\` — Cross-artifact validation (7 gates)
+
+## Rules
+
+- **Never modify \`brief.md\` during command execution** — it is read-only input
+- **All artifacts must include contract tags** like \`[G1]\`, \`[F2]\`, \`[C1]\` for traceability
+- **Output language is \`${lang}\`** — do not mix languages in generated content
+- **Follow templates strictly** — each artifact has a template in \`.prodo/templates/\`
+- **Validate after generation** — run \`/prodo-validate\` to check consistency
+`;
+}
+
+function generateArtifactRules(lang: string): string {
+  return `# Artifact Format Rules
+
+## Contract Tags
+Every artifact must reference brief requirements using tags:
+- \`[G1]\`, \`[G2]\` — Goal references
+- \`[F1]\`, \`[F2]\` — Feature references
+- \`[C1]\`, \`[C2]\` — Constraint references
+
+Tags must appear inline where the requirement is addressed.
+
+## Frontmatter
+Every generated artifact must include YAML frontmatter:
+\`\`\`yaml
+artifact_type: prd | workflow | wireframe | stories | techspec
+version: <timestamp>
+source_brief: <path to normalized-brief.json>
+generated_at: <ISO timestamp>
+status: draft
+contract_coverage:
+  goals: [G1, G2]
+  core_features: [F1, F2]
+  constraints: [C1]
+\`\`\`
+
+## Paired Outputs
+- **Workflow**: Produces \`.md\` (narrative) + \`.mmd\` (Mermaid diagram)
+- **Wireframe**: Produces \`.md\` (description) + \`.html\` (low-fidelity prototype)
+
+## Language
+Output language: **${lang}**. Do not mix languages. Required heading names stay in English.
+`;
+}
+
+function generateBriefRules(): string {
+  return `# Brief Writing Rules
+
+## Structure
+The brief (\`brief.md\`) should contain these sections:
+
+- **Product Name** — Clear, specific product name
+- **Problem** — Core problem the product solves (be specific)
+- **Audience** — Target users (list distinct personas)
+- **Goals** — Measurable objectives (not vague aspirations)
+- **Core Features** — One capability per bullet point
+- **Constraints** — Technical, business, or regulatory limits
+- **Assumptions** — Open questions or working assumptions
+
+## Tips
+- Be specific: "Reduce checkout abandonment by 30%" not "Improve UX"
+- Use consistent terminology throughout
+- Each feature should be distinct and independently describable
+- Constraints should be concrete: "Node.js 20+", "GDPR compliant"
+`;
+}
+
+export async function installAgentCommands(projectRoot: string, ai: SupportedAi, lang?: string): Promise<string[]> {
   const cfg = AGENT_CONFIG[ai];
   const target = path.join(projectRoot, cfg.baseDir);
   const commandTemplatesDir = path.join(projectRoot, ".prodo", "commands");
@@ -130,6 +220,30 @@ export async function installAgentCommands(projectRoot: string, ai: SupportedAi)
   await ensureDir(target);
 
   const written: string[] = [];
+
+  if (ai === "claude-cli") {
+    const claudeMdPath = path.join(projectRoot, "CLAUDE.md");
+    if (!(await fileExists(claudeMdPath))) {
+      await fs.writeFile(claudeMdPath, generateClaudeMd(projectRoot, lang ?? "en"), "utf8");
+      written.push(claudeMdPath);
+    }
+
+    const rulesDir = path.join(projectRoot, ".claude", "rules");
+    await ensureDir(rulesDir);
+
+    const artifactRulesPath = path.join(rulesDir, "artifact-format.md");
+    if (!(await fileExists(artifactRulesPath))) {
+      await fs.writeFile(artifactRulesPath, generateArtifactRules(lang ?? "en"), "utf8");
+      written.push(artifactRulesPath);
+    }
+
+    const briefRulesPath = path.join(rulesDir, "brief-rules.md");
+    if (!(await fileExists(briefRulesPath))) {
+      await fs.writeFile(briefRulesPath, generateBriefRules(), "utf8");
+      written.push(briefRulesPath);
+    }
+  }
+
   for (const commandName of commandNames) {
     const templatePath = path.join(commandTemplatesDir, `${commandName}.md`);
     if (!(await fileExists(templatePath))) {

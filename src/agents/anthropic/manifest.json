@@ -1,0 +1,7 @@
+{
+  "name": "anthropic",
+  "displayName": "Anthropic Claude",
+  "sdkRequired": "@anthropic-ai/sdk",
+  "envVars": ["ANTHROPIC_API_KEY"],
+  "defaultModel": "claude-sonnet-4-20250514"
+}

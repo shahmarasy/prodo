@@ -1,5 +1,6 @@
-import type { BriefContractItem } from "../normalized-brief";
-import type { LLMProvider, ProviderSchemaHint } from "../types";
+import type { BriefContractItem } from "../core/normalized-brief";
+import type { LLMProvider, ProviderSchemaHint } from "../core/types";
+import { t } from "../i18n";
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -121,22 +122,22 @@ function buildArtifactBody(schemaHint: ProviderSchemaHint, inputContext: Record<
   const items = normalizeSectionItems(inputContext);
   const coverage = coverageItems(schemaHint, inputContext);
   const localizedItems =
-    lang === "tr" ? items.map((_, index) => `Gereksinim maddesi ${index + 1}`) : items;
+    lang === "tr" ? items.map((_, index) => `${t("requirement_item", lang)} ${index + 1}`) : items;
   const localizedCoverage =
     lang === "tr"
       ? coverage.map((item, index) => ({
           id: item.id,
-          text: `Kontrat kapsami ${index + 1}`
+          text: `${t("contract_coverage", lang)} ${index + 1}`
         }))
       : coverage;
-  const fallback = lang === "tr" ? "Detay daha sonra netlestirilecek." : "To be refined.";
+  const fallback = t("to_be_refined", lang);
   const sections = schemaHint.requiredHeadings.map((heading) =>
     headingBlock(heading, localizedItems, fallback, localizedCoverage)
   );
   const title =
     lang === "tr"
-      ? `# ${productName} icin ${schemaHint.artifactType.toUpperCase()}`
-      : `# ${schemaHint.artifactType.toUpperCase()} for ${productName}`;
+      ? `# ${productName} ${t("for_artifact", lang)} ${schemaHint.artifactType.toUpperCase()}`
+      : `# ${schemaHint.artifactType.toUpperCase()} ${t("for_artifact", lang)} ${productName}`;
   if (schemaHint.artifactType === "workflow") {
     return `${title}\n\n${sections.join("\n")}\n\n\`\`\`mermaid
 flowchart TD
@@ -145,7 +146,7 @@ flowchart TD
   C --> D[Done]
 \`\`\``.trim();
   }
-  return `${title}\n\n${sections.join("\n")}\n\n${lang === "tr" ? "Not" : "Note"}: ${fallback}`.trim();
+  return `${title}\n\n${sections.join("\n")}\n\n${t("note", lang)}: ${fallback}`.trim();
 }
 
 function semanticIssuesWithMock(inputContext: Record<string, unknown>): string {

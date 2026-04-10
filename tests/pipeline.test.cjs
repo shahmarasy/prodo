@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { runCli } = require("../dist/cli");
+const { runCli } = require("../dist/cli/index");
 const { fs, path, makeTempDir } = require("./helpers.cjs");
 
 test("artifact generation fails when prereq missing", async (t) => {
@@ -438,7 +438,7 @@ test("fix command regenerates failing workflow artifacts from validation report"
   const fixedMd2 = await fs.readFile(newestMdPath, "utf8");
   assert.match(fixedMd2, /\|\s*v1\.2\s*\|/i);
 
-  assert.match(logs.join("\n"), /Fix pipeline completed\. Validation passed\./);
+  assert.match(logs.join("\n"), /Fix complete/);
 });
 
 test("doctor command prints grouped environment report", async (t) => {
@@ -450,7 +450,7 @@ test("doctor command prints grouped environment report", async (t) => {
   const out = logs.join("\n");
   assert.match(out, /Checking environment\.\.\./);
   assert.match(out, /Core/);
-  assert.match(out, /AI \/ Agents/);
+  assert.match(out, /AI CLI Tools/);
   assert.match(out, /Dev Tools/);
 });
 

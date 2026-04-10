@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { runCli } = require("../dist/cli");
+const { runCli } = require("../dist/cli/index");
 const { fs, path, makeTempDir, listFilesRecursive } = require("./helpers.cjs");
 
 test("prodo-init creates scaffold", async (t) => {

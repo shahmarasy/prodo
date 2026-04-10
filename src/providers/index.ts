@@ -1,12 +1,29 @@
-import type { LLMProvider } from "../types";
-import { MockProvider } from "./mock-provider";
-import { OpenAIProvider } from "./openai-provider";
+import type { LLMProvider } from "../core/types";
+import { getGlobalRegistry } from "../agents/agent-registry";
+
+let cachedProvider: LLMProvider | null = null;
+let cachedAgentName: string | null = null;
 
 export function createProvider(): LLMProvider {
-  const provider = (process.env.PRODO_LLM_PROVIDER ?? "mock").toLowerCase();
-  if (provider === "openai") {
-    return new OpenAIProvider();
+  const agentName =
+    process.env.PRODO_AGENT ??
+    process.env.PRODO_LLM_PROVIDER ??
+    "mock";
+
+  if (cachedProvider && cachedAgentName === agentName) {
+    return cachedProvider;
   }
-  return new MockProvider();
+
+  const registry = getGlobalRegistry();
+  const agent = registry.get(agentName);
+  if (!agent) {
+    const available = registry.list().map((a) => a.name).join(", ");
+    throw new Error(`Unknown agent: "${agentName}". Available: ${available}`);
+  }
+
+  cachedProvider = registry.toProvider(agent);
+  cachedAgentName = agentName;
+  return cachedProvider;
 }
 
+export { getGlobalRegistry } from "../agents/agent-registry";

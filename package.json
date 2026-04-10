@@ -1,6 +1,6 @@
 {
   "name": "@shahmarasy/prodo",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "CLI-first, prompt-powered product artifact kit",
   "main": "dist/cli/index.js",
   "types": "dist/cli/index.d.ts",
@@ -55,9 +55,15 @@
     "@google/generative-ai": ">=0.1.0"
   },
   "peerDependenciesMeta": {
-    "openai": { "optional": true },
-    "@anthropic-ai/sdk": { "optional": true },
-    "@google/generative-ai": { "optional": true }
+    "openai": {
+      "optional": true
+    },
+    "@anthropic-ai/sdk": {
+      "optional": true
+    },
+    "@google/generative-ai": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

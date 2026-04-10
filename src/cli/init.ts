@@ -284,7 +284,7 @@ function summarizeParity(items: AssetManifestItem[]): ScaffoldManifest["parity_s
 
 export async function runInit(
   cwd: string,
-  options?: { ai?: SupportedAi; lang?: string; author?: string; preset?: string; script?: "sh" | "ps" }
+  options?: { ai?: SupportedAi; lang?: string; author?: string; preset?: string; script?: "sh" | "ps"; provider?: string }
 ): Promise<{ installedAgentFiles: string[]; settingsPath: string }> {
   const root = prodoPath(cwd);
   const artifactDefs = await listArtifactDefinitions(cwd);
@@ -392,7 +392,8 @@ export async function runInit(
   const settingsPath = await writeSettings(cwd, {
     lang: (options?.lang ?? "en").trim() || "en",
     ai: options?.ai,
-    author: (options?.author ?? "").trim() || undefined
+    author: (options?.author ?? "").trim() || undefined,
+    provider: options?.provider
   });
   return { installedAgentFiles, settingsPath };
 }

@@ -6,8 +6,9 @@ import { fileExists } from "../core/utils";
 
 export type InitSelections = {
   ai?: SupportedAi;
+  provider?: string;
   script: "sh" | "ps";
-  lang: "tr" | "en";
+  lang: string;
   author: string;
   interactive: boolean;
 };
@@ -85,15 +86,10 @@ async function detectAi(projectRoot: string): Promise<SupportedAi | undefined> {
   return undefined;
 }
 
-function normalizeLang(lang?: string): "tr" | "en" {
-  if ((lang ?? "").trim().toLowerCase().startsWith("tr")) return "tr";
+function normalizeLang(lang?: string): string {
+  const raw = (lang ?? "").trim().toLowerCase();
+  if (raw.startsWith("tr")) return "tr";
   return "en";
-}
-
-function modelChoiceFromAi(ai?: SupportedAi): "codex" | "gemini" | "auto-detect" {
-  if (ai === "codex") return "codex";
-  if (ai === "gemini-cli") return "gemini";
-  return "auto-detect";
 }
 
 function defaultAuthorName(authorInput?: string): string {
@@ -103,7 +99,7 @@ function defaultAuthorName(authorInput?: string): string {
     const username = os.userInfo().username.trim();
     if (username.length > 0) return username;
   } catch {
-    // ignore lookup errors and continue with fallback
+    // ignore
   }
   return "Product Author";
 }
@@ -126,11 +122,10 @@ export async function gatherInitSelections(options: GatherInitUiOptions): Promis
   }
 
   const detectedAi = await detectAi(options.projectRoot);
-  const initialModel = modelChoiceFromAi(parsedAi ?? detectedAi);
   const projectName = path.basename(options.projectRoot) || ".";
   const width = terminalWidth();
-  const subtitle = color("Prodo — Product Artifact Toolkit", "\u001B[1;37m");
-  const signature = color("Crafted by Codex, guided by Shahmarasy intelligence", "\u001B[38;5;244m");
+  const subtitle = color("Prodo — AI-Powered Product Owner", "\u001B[1;37m");
+  const signature = color("Built by Shahmarasy · Works with Claude, Codex, and Gemini", "\u001B[38;5;244m");
   const hero = [
     "",
     centerBlock(renderLogo().split("\n"), width),
@@ -143,26 +138,42 @@ export async function gatherInitSelections(options: GatherInitUiOptions): Promis
   clack.intro(hero);
   clack.note(renderProjectBox(projectName, options.projectRoot), "Project Setup");
 
-  const model = await clack.select({
-    message: "Select model",
-    initialValue: initialModel,
+  const agentChoice = await clack.select({
+    message: "Select AI agent (command installer)",
+    initialValue: parsedAi ?? detectedAi ?? "claude-cli",
     options: [
-      { value: "codex", label: "codex", hint: "Native Codex flow" },
-      { value: "gemini", label: "gemini", hint: "Gemini CLI command set" },
-      { value: "auto-detect", label: "auto-detect", hint: "Detect from local agent directories" }
+      { value: "claude-cli", label: "Claude CLI", hint: "Claude Code slash commands (.claude/commands/)" },
+      { value: "codex", label: "Codex", hint: "Codex skills (.agents/skills/)" },
+      { value: "gemini-cli", label: "Gemini CLI", hint: "Gemini CLI commands (.gemini/commands/)" },
+      { value: "none", label: "None", hint: "Skip agent command installation" }
     ]
   });
-  if (clack.isCancel(model)) {
+  if (clack.isCancel(agentChoice)) {
+    clack.cancel("Initialization cancelled.");
+    throw new UserError("Initialization cancelled.");
+  }
+
+  const providerChoice = await clack.select({
+    message: "Select LLM provider (for document generation)",
+    initialValue: "openai",
+    options: [
+      { value: "openai", label: "OpenAI", hint: "GPT-4o-mini (requires OPENAI_API_KEY)" },
+      { value: "anthropic", label: "Anthropic Claude", hint: "Claude Sonnet (requires ANTHROPIC_API_KEY)" },
+      { value: "google", label: "Google Gemini", hint: "Gemini Flash (requires GOOGLE_API_KEY)" },
+      { value: "mock", label: "Mock (offline)", hint: "No AI calls — template-based generation for testing" }
+    ]
+  });
+  if (clack.isCancel(providerChoice)) {
     clack.cancel("Initialization cancelled.");
     throw new UserError("Initialization cancelled.");
   }
 
   const lang = await clack.select({
-    message: "Select language",
+    message: "Select document language",
     initialValue: defaultLang,
     options: [
-      { value: "tr", label: "tr", hint: "Turkish" },
-      { value: "en", label: "en", hint: "English" }
+      { value: "en", label: "English", hint: "English output" },
+      { value: "tr", label: "Türkçe", hint: "Turkish output" }
     ]
   });
   if (clack.isCancel(lang)) {
@@ -172,7 +183,7 @@ export async function gatherInitSelections(options: GatherInitUiOptions): Promis
 
   const author = await clack.text({
     message: "Author name",
-    placeholder: "Shahmarasy",
+    placeholder: "Your name",
     defaultValue: defaultAuthor
   });
   if (clack.isCancel(author)) {
@@ -180,15 +191,13 @@ export async function gatherInitSelections(options: GatherInitUiOptions): Promis
     throw new UserError("Initialization cancelled.");
   }
 
-  let selectedAi: SupportedAi | undefined;
-  if (model === "codex") selectedAi = "codex";
-  else if (model === "gemini") selectedAi = "gemini-cli";
-  else selectedAi = detectedAi;
+  const selectedAi = agentChoice === "none" ? undefined : (agentChoice as SupportedAi);
 
   return {
     ai: selectedAi,
+    provider: String(providerChoice),
     script: fallbackScript,
-    lang,
+    lang: String(lang),
     author: String(author).trim() || defaultAuthor,
     interactive: true
   };
@@ -198,11 +207,22 @@ export function finishInitInteractive(summary: {
   projectRoot: string;
   settingsPath: string;
   ai?: SupportedAi;
-  lang: "tr" | "en";
+  provider?: string;
+  lang: string;
   author: string;
 }): Promise<void> {
   const aiText = summary.ai ?? "none";
+  const providerText = summary.provider ?? "mock";
   return loadClack().then((clack) => clack.outro(
-    `Scaffold complete.\nAI: ${aiText}\nLanguage: ${summary.lang}\nAuthor: ${summary.author}\nSettings: ${summary.settingsPath}\nNext: edit brief.md`
+    `Scaffold complete.\n` +
+    `AI Agent: ${aiText}\n` +
+    `LLM Provider: ${providerText}\n` +
+    `Language: ${summary.lang}\n` +
+    `Author: ${summary.author}\n` +
+    `Settings: ${summary.settingsPath}\n` +
+    `\nNext steps:\n` +
+    `  1. Edit brief.md with your product description\n` +
+    `  2. Run: prodo generate\n` +
+    `  3. Review generated docs in product-docs/`
   ));
 }

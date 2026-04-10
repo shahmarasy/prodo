@@ -6,6 +6,7 @@ export type ProdoSettings = {
   lang: string;
   ai?: string;
   author?: string;
+  provider?: string;
 };
 
 const DEFAULT_SETTINGS: ProdoSettings = {
@@ -21,7 +22,8 @@ export async function readSettings(cwd: string): Promise<ProdoSettings> {
     return {
       lang: typeof parsed.lang === "string" && parsed.lang.trim() ? parsed.lang.trim() : "en",
       ai: typeof parsed.ai === "string" && parsed.ai.trim() ? parsed.ai.trim() : undefined,
-      author: typeof parsed.author === "string" && parsed.author.trim() ? parsed.author.trim() : undefined
+      author: typeof parsed.author === "string" && parsed.author.trim() ? parsed.author.trim() : undefined,
+      provider: typeof parsed.provider === "string" && parsed.provider.trim() ? parsed.provider.trim() : undefined
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -30,6 +32,10 @@ export async function readSettings(cwd: string): Promise<ProdoSettings> {
 
 export async function writeSettings(cwd: string, settings: ProdoSettings): Promise<string> {
   const path = settingsPath(cwd);
-  await fs.writeFile(path, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+  const clean: Record<string, unknown> = { lang: settings.lang };
+  if (settings.ai) clean.ai = settings.ai;
+  if (settings.author) clean.author = settings.author;
+  if (settings.provider) clean.provider = settings.provider;
+  await fs.writeFile(path, `${JSON.stringify(clean, null, 2)}\n`, "utf8");
   return path;
 }

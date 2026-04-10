@@ -312,7 +312,7 @@ async function runInit(cwd, options) {
         await rollbackFiles(backup);
         throw error;
     }
-    const installedAgentFiles = options?.ai ? await (0, agent_command_installer_1.installAgentCommands)(cwd, options.ai) : [];
+    const installedAgentFiles = options?.ai ? await (0, agent_command_installer_1.installAgentCommands)(cwd, options.ai, options?.lang) : [];
     const manifest = {
         schema_version: "1.0",
         generated_at: new Date().toISOString(),

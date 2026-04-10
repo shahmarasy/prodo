@@ -6,7 +6,6 @@ import { fileExists } from "../core/utils";
 
 export type InitSelections = {
   ai?: SupportedAi;
-  provider?: string;
   script: "sh" | "ps";
   lang: string;
   author: string;
@@ -80,9 +79,9 @@ function renderProjectBox(projectName: string, projectRoot: string): string {
 }
 
 async function detectAi(projectRoot: string): Promise<SupportedAi | undefined> {
+  if (await fileExists(path.join(projectRoot, ".claude"))) return "claude-cli";
   if (await fileExists(path.join(projectRoot, ".agents"))) return "codex";
   if (await fileExists(path.join(projectRoot, ".gemini"))) return "gemini-cli";
-  if (await fileExists(path.join(projectRoot, ".claude"))) return "claude-cli";
   return undefined;
 }
 
@@ -139,13 +138,12 @@ export async function gatherInitSelections(options: GatherInitUiOptions): Promis
   clack.note(renderProjectBox(projectName, options.projectRoot), "Project Setup");
 
   const agentChoice = await clack.select({
-    message: "Select AI agent (command installer)",
+    message: "Which AI agent will you use?",
     initialValue: parsedAi ?? detectedAi ?? "claude-cli",
     options: [
-      { value: "claude-cli", label: "Claude CLI", hint: "Claude Code slash commands (.claude/commands/)" },
-      { value: "codex", label: "Codex", hint: "Codex skills (.agents/skills/)" },
-      { value: "gemini-cli", label: "Gemini CLI", hint: "Gemini CLI commands (.gemini/commands/)" },
-      { value: "none", label: "None", hint: "Skip agent command installation" }
+      { value: "claude-cli", label: "Claude Code", hint: "Slash commands → .claude/commands/" },
+      { value: "codex", label: "Codex", hint: "Skills → .agents/skills/" },
+      { value: "gemini-cli", label: "Gemini CLI", hint: "Commands → .gemini/commands/" }
     ]
   });
   if (clack.isCancel(agentChoice)) {
@@ -153,27 +151,12 @@ export async function gatherInitSelections(options: GatherInitUiOptions): Promis
     throw new UserError("Initialization cancelled.");
   }
 
-  const providerChoice = await clack.select({
-    message: "Select LLM provider (for document generation)",
-    initialValue: "openai",
-    options: [
-      { value: "openai", label: "OpenAI", hint: "GPT-4o-mini (requires OPENAI_API_KEY)" },
-      { value: "anthropic", label: "Anthropic Claude", hint: "Claude Sonnet (requires ANTHROPIC_API_KEY)" },
-      { value: "google", label: "Google Gemini", hint: "Gemini Flash (requires GOOGLE_API_KEY)" },
-      { value: "mock", label: "Mock (offline)", hint: "No AI calls — template-based generation for testing" }
-    ]
-  });
-  if (clack.isCancel(providerChoice)) {
-    clack.cancel("Initialization cancelled.");
-    throw new UserError("Initialization cancelled.");
-  }
-
   const lang = await clack.select({
-    message: "Select document language",
+    message: "Document language",
     initialValue: defaultLang,
     options: [
-      { value: "en", label: "English", hint: "English output" },
-      { value: "tr", label: "Türkçe", hint: "Turkish output" }
+      { value: "en", label: "English" },
+      { value: "tr", label: "Türkçe" }
     ]
   });
   if (clack.isCancel(lang)) {
@@ -191,11 +174,8 @@ export async function gatherInitSelections(options: GatherInitUiOptions): Promis
     throw new UserError("Initialization cancelled.");
   }
 
-  const selectedAi = agentChoice === "none" ? undefined : (agentChoice as SupportedAi);
-
   return {
-    ai: selectedAi,
-    provider: String(providerChoice),
+    ai: agentChoice as SupportedAi,
     script: fallbackScript,
     lang: String(lang),
     author: String(author).trim() || defaultAuthor,
@@ -207,22 +187,34 @@ export function finishInitInteractive(summary: {
   projectRoot: string;
   settingsPath: string;
   ai?: SupportedAi;
-  provider?: string;
   lang: string;
   author: string;
 }): Promise<void> {
-  const aiText = summary.ai ?? "none";
-  const providerText = summary.provider ?? "mock";
+  const agentLabel = summary.ai === "claude-cli" ? "Claude Code"
+    : summary.ai === "codex" ? "Codex"
+    : summary.ai === "gemini-cli" ? "Gemini CLI"
+    : "none";
+
+  const commandPrefix = summary.ai === "codex" ? "$" : "/";
+  const commands = [
+    `${commandPrefix}prodo-normalize`,
+    `${commandPrefix}prodo-prd`,
+    `${commandPrefix}prodo-workflow`,
+    `${commandPrefix}prodo-wireframe`,
+    `${commandPrefix}prodo-stories`,
+    `${commandPrefix}prodo-techspec`,
+    `${commandPrefix}prodo-validate`
+  ];
+
   return loadClack().then((clack) => clack.outro(
-    `Scaffold complete.\n` +
-    `AI Agent: ${aiText}\n` +
-    `LLM Provider: ${providerText}\n` +
-    `Language: ${summary.lang}\n` +
-    `Author: ${summary.author}\n` +
-    `Settings: ${summary.settingsPath}\n` +
-    `\nNext steps:\n` +
+    `Scaffold complete!\n\n` +
+    `  Agent:    ${agentLabel}\n` +
+    `  Language: ${summary.lang}\n` +
+    `  Author:   ${summary.author}\n\n` +
+    `Next steps:\n` +
     `  1. Edit brief.md with your product description\n` +
-    `  2. Run: prodo generate\n` +
-    `  3. Review generated docs in product-docs/`
+    `  2. Open this folder in ${agentLabel}\n` +
+    `  3. Run commands in sequence:\n` +
+    `     ${commands.join("\n     ")}`
   ));
 }

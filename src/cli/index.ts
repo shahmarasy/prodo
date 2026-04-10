@@ -121,7 +121,6 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
   program
     .command("init [target]")
     .option("--ai <name>", "agent: codex | gemini-cli | claude-cli")
-    .option("--provider <name>", "LLM provider: openai | anthropic | google | mock")
     .option("--lang <code>", "document language (e.g. en, tr)")
     .option("--author <name>", "document author name")
     .option("--preset <name>", "preset to install during initialization")
@@ -134,7 +133,6 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
         authorInput: opts.author
       });
       const selectedAi = selected.ai as SupportedAi | undefined;
-      const selectedProvider = opts.provider ?? selected.provider;
 
       if (selected.interactive) {
         const clack = (await dynamicImport("@clack/prompts")) as typeof import("@clack/prompts");
@@ -145,15 +143,13 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
           lang: selected.lang,
           author: selected.author,
           preset: opts.preset,
-          script: selected.script,
-          provider: selectedProvider
+          script: selected.script
         });
         s.stop("Scaffold complete.");
         await finishInitInteractive({
           projectRoot,
           settingsPath: result.settingsPath,
           ai: selectedAi,
-          provider: selectedProvider,
           lang: selected.lang,
           author: selected.author
         });
@@ -165,20 +161,18 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
         lang: selected.lang,
         author: selected.author,
         preset: opts.preset,
-        script: selected.script,
-        provider: selectedProvider
+        script: selected.script
       });
       out(`Initialized Prodo scaffold at ${path.join(projectRoot, ".prodo")}`);
       if (selectedAi) {
-        out(`Agent command set installed for ${selectedAi}.`);
+        const label = selectedAi === "claude-cli" ? "Claude Code"
+          : selectedAi === "codex" ? "Codex" : "Gemini CLI";
+        out(`Agent commands installed for ${label}.`);
         out(`Installed ${result.installedAgentFiles.length} command files.`);
+        out(`Next: edit brief.md, open in ${label}, run /prodo-normalize`);
+      } else {
+        out("Next: edit brief.md, then run `prodo generate`.");
       }
-      if (selectedProvider && selectedProvider !== "mock") {
-        out(`LLM Provider: ${selectedProvider}. Set PRODO_AGENT=${selectedProvider} or configure in .prodo/settings.json`);
-      }
-      out(`Settings file: ${result.settingsPath}`);
-      out(`Author: ${selected.author}`);
-      out("Next: edit brief.md, then run `prodo generate`.");
     });
 
   program

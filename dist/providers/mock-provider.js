@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MockProvider = void 0;
+const i18n_1 = require("../i18n");
 function asStringArray(value) {
     if (!Array.isArray(value))
         return [];
@@ -107,18 +108,18 @@ function buildArtifactBody(schemaHint, inputContext) {
     const lang = typeof inputContext.outputLanguage === "string" ? inputContext.outputLanguage.toLowerCase() : "en";
     const items = normalizeSectionItems(inputContext);
     const coverage = coverageItems(schemaHint, inputContext);
-    const localizedItems = lang === "tr" ? items.map((_, index) => `Gereksinim maddesi ${index + 1}`) : items;
+    const localizedItems = lang === "tr" ? items.map((_, index) => `${(0, i18n_1.t)("requirement_item", lang)} ${index + 1}`) : items;
     const localizedCoverage = lang === "tr"
         ? coverage.map((item, index) => ({
             id: item.id,
-            text: `Kontrat kapsami ${index + 1}`
+            text: `${(0, i18n_1.t)("contract_coverage", lang)} ${index + 1}`
         }))
         : coverage;
-    const fallback = lang === "tr" ? "Detay daha sonra netlestirilecek." : "To be refined.";
+    const fallback = (0, i18n_1.t)("to_be_refined", lang);
     const sections = schemaHint.requiredHeadings.map((heading) => headingBlock(heading, localizedItems, fallback, localizedCoverage));
     const title = lang === "tr"
-        ? `# ${productName} icin ${schemaHint.artifactType.toUpperCase()}`
-        : `# ${schemaHint.artifactType.toUpperCase()} for ${productName}`;
+        ? `# ${productName} ${(0, i18n_1.t)("for_artifact", lang)} ${schemaHint.artifactType.toUpperCase()}`
+        : `# ${schemaHint.artifactType.toUpperCase()} ${(0, i18n_1.t)("for_artifact", lang)} ${productName}`;
     if (schemaHint.artifactType === "workflow") {
         return `${title}\n\n${sections.join("\n")}\n\n\`\`\`mermaid
 flowchart TD
@@ -127,7 +128,7 @@ flowchart TD
   C --> D[Done]
 \`\`\``.trim();
     }
-    return `${title}\n\n${sections.join("\n")}\n\n${lang === "tr" ? "Not" : "Note"}: ${fallback}`.trim();
+    return `${title}\n\n${sections.join("\n")}\n\n${(0, i18n_1.t)("note", lang)}: ${fallback}`.trim();
 }
 function semanticIssuesWithMock(inputContext) {
     const pair = inputContext.pair;

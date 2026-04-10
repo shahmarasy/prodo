@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OpenAIProvider = void 0;
-const errors_1 = require("../errors");
+const errors_1 = require("../core/errors");
 class OpenAIProvider {
     apiKey;
     model;

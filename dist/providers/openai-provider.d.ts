@@ -1,4 +1,4 @@
-import type { LLMProvider, ProviderSchemaHint } from "../types";
+import type { LLMProvider, ProviderSchemaHint } from "../core/types";
 export declare class OpenAIProvider implements LLMProvider {
     private readonly apiKey;
     private readonly model;

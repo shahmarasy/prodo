@@ -31,3 +31,4 @@ temp/
 *.swo
 /.idea
 /.gemini
+/.claude

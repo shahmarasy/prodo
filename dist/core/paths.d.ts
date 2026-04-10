@@ -1,0 +1,17 @@
+import type { ArtifactType } from "./types";
+export declare function prodoPath(cwd: string): string;
+export declare function briefPath(cwd: string): string;
+export declare function normalizedBriefPath(cwd: string): string;
+export declare function settingsPath(cwd: string): string;
+export declare function registryPath(cwd: string): string;
+export declare function promptPath(cwd: string, artifactType: ArtifactType): string;
+export declare function templatePath(cwd: string, artifactType: ArtifactType): string;
+export declare function overrideTemplatePath(cwd: string, artifactType: ArtifactType): string;
+export declare function templateCandidatePaths(cwd: string, artifactType: ArtifactType): string[];
+export declare function overrideTemplateCandidatePaths(cwd: string, artifactType: ArtifactType): string[];
+export declare function schemaPath(cwd: string, artifactType: ArtifactType): string;
+export declare function outputDirPath(cwd: string, artifactType: ArtifactType, outputDirOverride?: string): string;
+export declare function reportPath(cwd: string): string;
+export declare function outputIndexPath(cwd: string): string;
+export declare function outputContextDirPath(cwd: string): string;
+export declare function normHistoryPath(cwd: string): string;

@@ -196,28 +196,30 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
         return;
       }
       await withBriefReadOnlyGuard(cwd, async () => {
+        const { createEngine, createPipelineState } = await import("../skill-engine");
+        const engine = await createEngine(cwd, out);
+        const state = createPipelineState(cwd);
+        const pipelineSkills = ["normalize", ...artifactTypes, "validate"];
+
         await runHookPhase(cwd, "before_normalize", out);
-        const normalizedPath = await runNormalize({ cwd });
-        out(`Normalized brief written to: ${normalizedPath}`);
-        await runHookPhase(cwd, "after_normalize", out);
 
-        for (const type of artifactTypes) {
-          await runArtifactCommand(type, { from: normalizedPath, agent: opts.agent }, cwd, out, {
-            suggestValidate: false
-          });
-        }
-
-        await runHookPhase(cwd, "before_validate", out);
-        const result = await runValidate(cwd, {
-          strict: Boolean(opts.strict),
-          report: opts.report
+        const finalState = await engine.runPipeline(pipelineSkills, state, {
+          log: (msg) => {
+            out(msg);
+          },
+          agent: opts.agent
         });
-        out(`Validation report written to: ${result.reportPath}`);
-        if (!result.pass) {
+
+        await runHookPhase(cwd, "after_validate", out);
+
+        if (finalState.validationResult && !finalState.validationResult.pass) {
+          out(`Validation report written to: ${finalState.validationResult.reportPath}`);
           throw new UserError("Validation failed. Review report and fix issues.");
         }
+        if (finalState.validationResult) {
+          out(`Validation report written to: ${finalState.validationResult.reportPath}`);
+        }
         out("Generation pipeline completed. Validation passed.");
-        await runHookPhase(cwd, "after_validate", out);
       });
     });
 
@@ -388,35 +390,38 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
     });
 
   program
-    .command("skills", { hidden: true })
-    .description("Advanced: manage and run skills")
+    .command("skills")
+    .description("Manage and run skills")
     .argument("[action]", "list or run", "list")
     .argument("[name]", "skill name (for run)")
     .option("--input <json>", "JSON input for skill execution")
     .action(async (action: string, name: string | undefined, opts: { input?: string }) => {
-      const { getGlobalSkillEngine } = await import("../skills/engine");
-      const engine = getGlobalSkillEngine();
+      const { createEngine, createHydratedState } = await import("../skill-engine");
+      const engine = await createEngine(cwd, out);
+      const registry = engine.getRegistry();
 
       if (action === "list") {
-        const manifests = engine.listSkills();
+        const manifests = registry.listManifests();
         if (manifests.length === 0) {
           out("No skills registered.");
           return;
         }
         out("Available skills:\n");
         for (const m of manifests) {
-          out(`  ${m.name.padEnd(25)} [${m.category}] ${m.description}`);
+          const deps = m.depends_on.length > 0 ? ` (deps: ${m.depends_on.join(", ")})` : "";
+          out(`  ${m.name.padEnd(25)} [${m.category}] v${m.version} ${m.description}${deps}`);
         }
         return;
       }
 
       if (action === "run") {
         if (!name) throw new UserError("Skill name is required. Usage: prodo skills run <name>");
+        const state = await createHydratedState(cwd);
         const inputs = opts.input ? JSON.parse(opts.input) as Record<string, unknown> : {};
         inputs.cwd = inputs.cwd ?? cwd;
-        const result = await engine.execute(name, { cwd, log: out }, inputs);
+        const result = await engine.runSkill(name, state, { log: out });
         out(`\nSkill "${name}" completed.`);
-        out(JSON.stringify(result, null, 2));
+        out(`Completed skills: ${result.completedSkills.join(" → ")}`);
         return;
       }
 

@@ -2,7 +2,7 @@ import { type SupportedAi } from "./agent-command-installer";
 export type InitSelections = {
     ai?: SupportedAi;
     script: "sh" | "ps";
-    lang: "tr" | "en";
+    lang: string;
     author: string;
     interactive: boolean;
 };
@@ -17,7 +17,7 @@ export declare function finishInitInteractive(summary: {
     projectRoot: string;
     settingsPath: string;
     ai?: SupportedAi;
-    lang: "tr" | "en";
+    lang: string;
     author: string;
 }): Promise<void>;
 export {};

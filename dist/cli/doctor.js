@@ -120,8 +120,8 @@ async function runDoctor(cwd, out) {
     out("");
     out(renderLogo(width));
     out("");
-    out(center(color("Prodo — Product Artifact Toolkit", "\u001B[1;37m"), width));
-    out(center(color("Crafted by Codex, guided by Shahmarasy intelligence", "\u001B[2;37m"), width));
+    out(center(color("Prodo — AI-Powered Product Owner", "\u001B[1;37m"), width));
+    out(center(color("Built by Shahmarasy · Works with Claude, Codex, and Gemini", "\u001B[2;37m"), width));
     out("");
     out("Checking environment...");
     out("");

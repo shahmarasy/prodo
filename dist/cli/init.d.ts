@@ -5,6 +5,7 @@ export declare function runInit(cwd: string, options?: {
     author?: string;
     preset?: string;
     script?: "sh" | "ps";
+    provider?: string;
 }): Promise<{
     installedAgentFiles: string[];
     settingsPath: string;

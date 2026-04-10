@@ -138,7 +138,7 @@ async function runCli(options = {}) {
     const artifactTypes = await (0, artifact_registry_1.listArtifactTypes)(cwd);
     program
         .command("init [target]")
-        .option("--ai <name>", "agent integration: codex | gemini-cli | claude-cli")
+        .option("--ai <name>", "agent: codex | gemini-cli | claude-cli")
         .option("--lang <code>", "document language (e.g. en, tr)")
         .option("--author <name>", "document author name")
         .option("--preset <name>", "preset to install during initialization")
@@ -181,16 +181,15 @@ async function runCli(options = {}) {
         });
         out(`Initialized Prodo scaffold at ${node_path_1.default.join(projectRoot, ".prodo")}`);
         if (selectedAi) {
-            out(`Agent command set installed for ${selectedAi}.`);
+            const label = selectedAi === "claude-cli" ? "Claude Code"
+                : selectedAi === "codex" ? "Codex" : "Gemini CLI";
+            out(`Agent commands installed for ${label}.`);
             out(`Installed ${result.installedAgentFiles.length} command files.`);
-            out("Agent workflow: edit brief.md, then run slash commands in your agent.");
+            out(`Next: edit brief.md, open in ${label}, run /prodo-normalize`);
         }
         else {
-            out("No agent selected. Use `prodo generate` for end-to-end generation.");
+            out("Next: edit brief.md, then run `prodo generate`.");
         }
-        out(`Settings file: ${result.settingsPath}`);
-        out(`Author: ${selected.author}`);
-        out("Next: edit brief.md.");
     });
     program
         .command("generate")
@@ -213,26 +212,26 @@ async function runCli(options = {}) {
             return;
         }
         await withBriefReadOnlyGuard(cwd, async () => {
+            const { createEngine, createPipelineState } = await Promise.resolve().then(() => __importStar(require("../skill-engine")));
+            const engine = await createEngine(cwd, out);
+            const state = createPipelineState(cwd);
+            const pipelineSkills = ["normalize", ...artifactTypes, "validate"];
             await (0, hook_executor_1.runHookPhase)(cwd, "before_normalize", out);
-            const normalizedPath = await (0, normalize_1.runNormalize)({ cwd });
-            out(`Normalized brief written to: ${normalizedPath}`);
-            await (0, hook_executor_1.runHookPhase)(cwd, "after_normalize", out);
-            for (const type of artifactTypes) {
-                await runArtifactCommand(type, { from: normalizedPath, agent: opts.agent }, cwd, out, {
-                    suggestValidate: false
-                });
-            }
-            await (0, hook_executor_1.runHookPhase)(cwd, "before_validate", out);
-            const result = await (0, validate_1.runValidate)(cwd, {
-                strict: Boolean(opts.strict),
-                report: opts.report
+            const finalState = await engine.runPipeline(pipelineSkills, state, {
+                log: (msg) => {
+                    out(msg);
+                },
+                agent: opts.agent
             });
-            out(`Validation report written to: ${result.reportPath}`);
-            if (!result.pass) {
+            await (0, hook_executor_1.runHookPhase)(cwd, "after_validate", out);
+            if (finalState.validationResult && !finalState.validationResult.pass) {
+                out(`Validation report written to: ${finalState.validationResult.reportPath}`);
                 throw new errors_1.UserError("Validation failed. Review report and fix issues.");
             }
+            if (finalState.validationResult) {
+                out(`Validation report written to: ${finalState.validationResult.reportPath}`);
+            }
             out("Generation pipeline completed. Validation passed.");
-            await (0, hook_executor_1.runHookPhase)(cwd, "after_validate", out);
         });
     });
     program
@@ -393,34 +392,37 @@ async function runCli(options = {}) {
         });
     });
     program
-        .command("skills", { hidden: true })
-        .description("Advanced: manage and run skills")
+        .command("skills")
+        .description("Manage and run skills")
         .argument("[action]", "list or run", "list")
         .argument("[name]", "skill name (for run)")
         .option("--input <json>", "JSON input for skill execution")
         .action(async (action, name, opts) => {
-        const { getGlobalSkillEngine } = await Promise.resolve().then(() => __importStar(require("../skills/engine")));
-        const engine = getGlobalSkillEngine();
+        const { createEngine, createHydratedState } = await Promise.resolve().then(() => __importStar(require("../skill-engine")));
+        const engine = await createEngine(cwd, out);
+        const registry = engine.getRegistry();
         if (action === "list") {
-            const manifests = engine.listSkills();
+            const manifests = registry.listManifests();
             if (manifests.length === 0) {
                 out("No skills registered.");
                 return;
             }
             out("Available skills:\n");
             for (const m of manifests) {
-                out(`  ${m.name.padEnd(25)} [${m.category}] ${m.description}`);
+                const deps = m.depends_on.length > 0 ? ` (deps: ${m.depends_on.join(", ")})` : "";
+                out(`  ${m.name.padEnd(25)} [${m.category}] v${m.version} ${m.description}${deps}`);
             }
             return;
         }
         if (action === "run") {
             if (!name)
                 throw new errors_1.UserError("Skill name is required. Usage: prodo skills run <name>");
+            const state = await createHydratedState(cwd);
             const inputs = opts.input ? JSON.parse(opts.input) : {};
             inputs.cwd = inputs.cwd ?? cwd;
-            const result = await engine.execute(name, { cwd, log: out }, inputs);
+            const result = await engine.runSkill(name, state, { log: out });
             out(`\nSkill "${name}" completed.`);
-            out(JSON.stringify(result, null, 2));
+            out(`Completed skills: ${result.completedSkills.join(" → ")}`);
             return;
         }
         throw new errors_1.UserError(`Unknown skills action: "${action}". Use: list or run`);

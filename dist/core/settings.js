@@ -21,7 +21,8 @@ async function readSettings(cwd) {
         return {
             lang: typeof parsed.lang === "string" && parsed.lang.trim() ? parsed.lang.trim() : "en",
             ai: typeof parsed.ai === "string" && parsed.ai.trim() ? parsed.ai.trim() : undefined,
-            author: typeof parsed.author === "string" && parsed.author.trim() ? parsed.author.trim() : undefined
+            author: typeof parsed.author === "string" && parsed.author.trim() ? parsed.author.trim() : undefined,
+            provider: typeof parsed.provider === "string" && parsed.provider.trim() ? parsed.provider.trim() : undefined
         };
     }
     catch {
@@ -30,6 +31,13 @@ async function readSettings(cwd) {
 }
 async function writeSettings(cwd, settings) {
     const path = (0, paths_1.settingsPath)(cwd);
-    await promises_1.default.writeFile(path, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+    const clean = { lang: settings.lang };
+    if (settings.ai)
+        clean.ai = settings.ai;
+    if (settings.author)
+        clean.author = settings.author;
+    if (settings.provider)
+        clean.provider = settings.provider;
+    await promises_1.default.writeFile(path, `${JSON.stringify(clean, null, 2)}\n`, "utf8");
     return path;
 }

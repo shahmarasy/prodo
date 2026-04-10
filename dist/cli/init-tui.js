@@ -56,25 +56,19 @@ function renderProjectBox(projectName, projectRoot) {
     return [top, ...rows, bottom].join("\n");
 }
 async function detectAi(projectRoot) {
+    if (await (0, utils_1.fileExists)(node_path_1.default.join(projectRoot, ".claude")))
+        return "claude-cli";
     if (await (0, utils_1.fileExists)(node_path_1.default.join(projectRoot, ".agents")))
         return "codex";
     if (await (0, utils_1.fileExists)(node_path_1.default.join(projectRoot, ".gemini")))
         return "gemini-cli";
-    if (await (0, utils_1.fileExists)(node_path_1.default.join(projectRoot, ".claude")))
-        return "claude-cli";
     return undefined;
 }
 function normalizeLang(lang) {
-    if ((lang ?? "").trim().toLowerCase().startsWith("tr"))
+    const raw = (lang ?? "").trim().toLowerCase();
+    if (raw.startsWith("tr"))
         return "tr";
     return "en";
-}
-function modelChoiceFromAi(ai) {
-    if (ai === "codex")
-        return "codex";
-    if (ai === "gemini-cli")
-        return "gemini";
-    return "auto-detect";
 }
 function defaultAuthorName(authorInput) {
     const explicit = (authorInput ?? "").trim();
@@ -86,7 +80,7 @@ function defaultAuthorName(authorInput) {
             return username;
     }
     catch {
-        // ignore lookup errors and continue with fallback
+        // ignore
     }
     return "Product Author";
 }
@@ -106,11 +100,10 @@ async function gatherInitSelections(options) {
         };
     }
     const detectedAi = await detectAi(options.projectRoot);
-    const initialModel = modelChoiceFromAi(parsedAi ?? detectedAi);
     const projectName = node_path_1.default.basename(options.projectRoot) || ".";
     const width = terminalWidth();
-    const subtitle = color("Prodo — Product Artifact Toolkit", "\u001B[1;37m");
-    const signature = color("Crafted by Codex, guided by Shahmarasy intelligence", "\u001B[38;5;244m");
+    const subtitle = color("Prodo — AI-Powered Product Owner", "\u001B[1;37m");
+    const signature = color("Built by Shahmarasy · Works with Claude, Codex, and Gemini", "\u001B[38;5;244m");
     const hero = [
         "",
         centerBlock(renderLogo().split("\n"), width),
@@ -121,25 +114,25 @@ async function gatherInitSelections(options) {
     ].join("\n");
     clack.intro(hero);
     clack.note(renderProjectBox(projectName, options.projectRoot), "Project Setup");
-    const model = await clack.select({
-        message: "Select model",
-        initialValue: initialModel,
+    const agentChoice = await clack.select({
+        message: "Which AI agent will you use?",
+        initialValue: parsedAi ?? detectedAi ?? "claude-cli",
         options: [
-            { value: "codex", label: "codex", hint: "Native Codex flow" },
-            { value: "gemini", label: "gemini", hint: "Gemini CLI command set" },
-            { value: "auto-detect", label: "auto-detect", hint: "Detect from local agent directories" }
+            { value: "claude-cli", label: "Claude Code", hint: "Slash commands → .claude/commands/" },
+            { value: "codex", label: "Codex", hint: "Skills → .agents/skills/" },
+            { value: "gemini-cli", label: "Gemini CLI", hint: "Commands → .gemini/commands/" }
         ]
     });
-    if (clack.isCancel(model)) {
+    if (clack.isCancel(agentChoice)) {
         clack.cancel("Initialization cancelled.");
         throw new errors_1.UserError("Initialization cancelled.");
     }
     const lang = await clack.select({
-        message: "Select language",
+        message: "Document language",
         initialValue: defaultLang,
         options: [
-            { value: "tr", label: "tr", hint: "Turkish" },
-            { value: "en", label: "en", hint: "English" }
+            { value: "en", label: "English" },
+            { value: "tr", label: "Türkçe" }
         ]
     });
     if (clack.isCancel(lang)) {
@@ -148,29 +141,43 @@ async function gatherInitSelections(options) {
     }
     const author = await clack.text({
         message: "Author name",
-        placeholder: "Shahmarasy",
+        placeholder: "Your name",
         defaultValue: defaultAuthor
     });
     if (clack.isCancel(author)) {
         clack.cancel("Initialization cancelled.");
         throw new errors_1.UserError("Initialization cancelled.");
     }
-    let selectedAi;
-    if (model === "codex")
-        selectedAi = "codex";
-    else if (model === "gemini")
-        selectedAi = "gemini-cli";
-    else
-        selectedAi = detectedAi;
     return {
-        ai: selectedAi,
+        ai: agentChoice,
         script: fallbackScript,
-        lang,
+        lang: String(lang),
         author: String(author).trim() || defaultAuthor,
         interactive: true
     };
 }
 function finishInitInteractive(summary) {
-    const aiText = summary.ai ?? "none";
-    return loadClack().then((clack) => clack.outro(`Scaffold complete.\nAI: ${aiText}\nLanguage: ${summary.lang}\nAuthor: ${summary.author}\nSettings: ${summary.settingsPath}\nNext: edit brief.md`));
+    const agentLabel = summary.ai === "claude-cli" ? "Claude Code"
+        : summary.ai === "codex" ? "Codex"
+            : summary.ai === "gemini-cli" ? "Gemini CLI"
+                : "none";
+    const commandPrefix = summary.ai === "codex" ? "$" : "/";
+    const commands = [
+        `${commandPrefix}prodo-normalize`,
+        `${commandPrefix}prodo-prd`,
+        `${commandPrefix}prodo-workflow`,
+        `${commandPrefix}prodo-wireframe`,
+        `${commandPrefix}prodo-stories`,
+        `${commandPrefix}prodo-techspec`,
+        `${commandPrefix}prodo-validate`
+    ];
+    return loadClack().then((clack) => clack.outro(`Scaffold complete!\n\n` +
+        `  Agent:    ${agentLabel}\n` +
+        `  Language: ${summary.lang}\n` +
+        `  Author:   ${summary.author}\n\n` +
+        `Next steps:\n` +
+        `  1. Edit brief.md with your product description\n` +
+        `  2. Open this folder in ${agentLabel}\n` +
+        `  3. Run commands in sequence:\n` +
+        `     ${commands.join("\n     ")}`));
 }

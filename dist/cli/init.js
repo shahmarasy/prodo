@@ -328,7 +328,8 @@ async function runInit(cwd, options) {
     const settingsPath = await (0, settings_1.writeSettings)(cwd, {
         lang: (options?.lang ?? "en").trim() || "en",
         ai: options?.ai,
-        author: (options?.author ?? "").trim() || undefined
+        author: (options?.author ?? "").trim() || undefined,
+        provider: options?.provider
     });
     return { installedAgentFiles, settingsPath };
 }

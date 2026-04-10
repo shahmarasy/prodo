@@ -11,6 +11,7 @@ import { UserError } from "../core/errors";
 import { runHookPhase } from "../core/hook-executor";
 import { runInit } from "./init";
 import { finishInitInteractive, gatherInitSelections } from "./init-tui";
+import { runClean } from "../core/clean";
 import { buildFixProposal, applyFix, runFix } from "../core/fix";
 import { runNormalize } from "../core/normalize";
 import { runInteractiveNormalize } from "./normalize-interactive";
@@ -181,8 +182,19 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
     .option("--agent <name>", "agent profile: codex | gemini-cli | claude-cli")
     .option("--strict", "treat validation warnings as errors")
     .option("--report <path>", "validation report output path")
-    .action(async (opts) => {
+    .option("--dry-run", "show what would be generated without writing files")
+    .action(async (opts: { agent?: string; strict?: boolean; report?: string; dryRun?: boolean }) => {
       if (opts.agent) resolveAgent(opts.agent);
+      if (opts.dryRun) {
+        out("[Dry Run] Pipeline would execute:");
+        out(`  1. Normalize brief.md`);
+        for (const type of artifactTypes) {
+          out(`  2. Generate ${type}`);
+        }
+        out(`  3. Validate all artifacts`);
+        out(`\nArtifact types: ${artifactTypes.join(", ")}`);
+        return;
+      }
       await withBriefReadOnlyGuard(cwd, async () => {
         await runHookPhase(cwd, "before_normalize", out);
         const normalizedPath = await runNormalize({ cwd });
@@ -271,8 +283,15 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
     .option("--out <path>", "output normalized brief json path")
     .option("--agent <name>", "agent profile: codex | gemini-cli | claude-cli")
     .option("-i, --interactive", "interactively clarify low-confidence fields")
-    .action(async (opts: { brief?: string; out?: string; agent?: string; interactive?: boolean }) => {
+    .option("--dry-run", "show what would be normalized without writing")
+    .action(async (opts: { brief?: string; out?: string; agent?: string; interactive?: boolean; dryRun?: boolean }) => {
       if (opts.agent) resolveAgent(opts.agent);
+      if (opts.dryRun) {
+        const briefFile = opts.brief ?? "brief.md";
+        out(`[Dry Run] Would normalize: ${briefFile}`);
+        out(`[Dry Run] Output would be written to: .prodo/briefs/normalized-brief.json`);
+        return;
+      }
       await withBriefReadOnlyGuard(cwd, async () => {
         await runHookPhase(cwd, "before_normalize", out);
         const outPath = opts.interactive
@@ -289,6 +308,23 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
     .description("Check local environment and toolchain readiness")
     .action(async () => {
       await runDoctor(cwd, out);
+    });
+
+  program
+    .command("clean")
+    .description("Remove all generated artifacts, keep brief.md and config")
+    .option("--dry-run", "show what would be removed without deleting")
+    .action(async (opts: { dryRun?: boolean }) => {
+      const result = await runClean({
+        cwd,
+        dryRun: Boolean(opts.dryRun),
+        log: out
+      });
+      if (result.removedPaths.length === 0) {
+        out("Nothing to clean.");
+      } else if (!opts.dryRun) {
+        out(`Cleaned ${result.removedPaths.length} path(s). Project is ready for a fresh run.`);
+      }
     });
 
   for (const type of artifactTypes) {

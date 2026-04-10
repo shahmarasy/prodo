@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import matter from "gray-matter";
+import { t } from "../i18n";
 import { DEFAULT_STATUS, defaultRequiredHeadings } from "./constants";
 import { getArtifactDefinition } from "./artifact-registry";
 import { UserError } from "./errors";
@@ -160,29 +161,28 @@ function renderWorkflowMermaidTemplate(
   coverage: ContractCoverage,
   lang: string
 ): string {
-  const tr = lang.toLowerCase().startsWith("tr");
   const primaryFeatureId = coverage.core_features[0] ?? normalized.contracts.core_features[0]?.id ?? "F1";
   const primaryFeatureText =
     normalized.contracts.core_features.find((item) => item.id === primaryFeatureId)?.text ??
     normalized.contracts.core_features[0]?.text ??
-    (tr ? "Kullanici islemi" : "User action");
+    t("user_action", lang);
 
   return replaceTemplateTokens(
     templateContent,
     {
-      "Flow Name": tr ? "Ana Akis" : "Main Flow",
-      "Primary Actor": normalized.audience[0] ?? (tr ? "Kullanici" : "User"),
+      "Flow Name": t("main_flow", lang),
+      "Primary Actor": normalized.audience[0] ?? t("user", lang),
       "Primary Action": `[${primaryFeatureId}] ${primaryFeatureText}`,
-      "Success State": tr ? "Basari" : "Success",
-      "Error State": tr ? "Hata" : "Error"
+      "Success State": t("success", lang),
+      "Error State": t("error", lang)
     },
     (token) => {
       const key = token.toLowerCase();
-      if (key.includes("actor") || key.includes("user")) return normalized.audience[0] ?? (tr ? "Kullanici" : "User");
+      if (key.includes("actor") || key.includes("user")) return normalized.audience[0] ?? t("user", lang);
       if (key.includes("action") || key.includes("feature")) return `[${primaryFeatureId}] ${primaryFeatureText}`;
-      if (key.includes("success")) return tr ? "Basari" : "Success";
-      if (key.includes("error") || key.includes("fail")) return tr ? "Hata" : "Error";
-      if (key.includes("flow")) return tr ? "Ana Akis" : "Main Flow";
+      if (key.includes("success")) return t("success", lang);
+      if (key.includes("error") || key.includes("fail")) return t("error", lang);
+      if (key.includes("flow")) return t("main_flow", lang);
       return token;
     }
   );
@@ -221,11 +221,10 @@ function defaultDocumentControlValues(
   version: string,
   author?: string
 ): { version: string; date: string; author: string; description: string } {
-  const tr = lang.toLowerCase().startsWith("tr");
-  const safeAuthor = normalizeAuthor(author) ?? (tr ? "Prodo" : "Prodo");
+  const safeAuthor = normalizeAuthor(author) ?? "Prodo";
   const description = revisionType === "fix"
-    ? (tr ? "Dogrulama sonrasi duzeltme revizyonu" : "Post-validation fix revision")
-    : (tr ? "Ilk surum" : "Initial version");
+    ? t("fix_revision", lang)
+    : t("initial_version", lang);
   return {
     version,
     date: todayYmd(),
@@ -363,7 +362,7 @@ function renderWorkflowMarkdownForFeature(
   lang: string
 ): string {
   const tr = lang.toLowerCase().startsWith("tr");
-  const noteHeading = tr ? "## Akis Odagi" : "## Flow Focus";
+  const noteHeading = "## " + t("flow_focus", lang);
   const noteLine = tr
     ? `- [${feature.id}] Bu akis ${feature.text} ihtiyacina odaklanir.`
     : `- [${feature.id}] This flow focuses on ${feature.text}.`;
@@ -723,23 +722,23 @@ async function writeWireframeScreens(
   <!-- [${screen.id}] -->
   <header>
     <h1>${title}</h1>
-    <nav><button type="button">${tr ? "Geri" : "Back"}</button><button type="button">${tr ? "Devam" : "Next"}</button></nav>
+    <nav><button type="button">${t("back", lang)}</button><button type="button">${t("next", lang)}</button></nav>
   </header>
   <main>
     <section>
-      <h2>${tr ? "Icerik" : "Content"}</h2>
+      <h2>${t("content", lang)}</h2>
       <ul>
-        <li>${tr ? "Birincil bilgi alani" : "Primary information area"}</li>
-        <li>${tr ? "Durum gostergesi" : "Status indicator"}</li>
+        <li>${t("primary_info_area", lang)}</li>
+        <li>${t("status_indicator", lang)}</li>
       </ul>
     </section>
     <section>
-      <h2>${tr ? "Form" : "Form"}</h2>
+      <h2>${t("form", lang)}</h2>
       <form>
-        <label>${tr ? "Alan" : "Field"}
+        <label>${t("field", lang)}
           <input type="text" name="field_${index + 1}" />
         </label>
-        <button type="submit">${tr ? "Kaydet" : "Save"}</button>
+        <button type="submit">${t("save", lang)}</button>
       </form>
     </section>
   </main>
@@ -750,26 +749,26 @@ async function writeWireframeScreens(
       htmlTemplate,
       {
         "Screen Title": title,
-        "Primary Action": tr ? "Kaydet" : "Save",
-        "Description Label": tr ? "Aciklama" : "Description",
+        "Primary Action": t("save", lang),
+        "Description Label": t("description", lang),
         "Description Placeholder": `[${screen.id}] ${screen.text}`,
-        "Meta Label 1": tr ? "Kontrat" : "Contract",
+        "Meta Label 1": t("contract", lang),
         "Meta Value 1": screen.id,
-        "Meta Label 2": tr ? "Aktor" : "Actor",
-        "Meta Value 2": normalized.audience[0] ?? (tr ? "Kullanici" : "User"),
-        "Field Label": tr ? "Alan" : "Field",
-        "Detailed Input Area": tr ? "Detayli Giris Alani" : "Detailed Input Area",
-        "Upload / Attachment Area": tr ? "Dosya Alani" : "Upload Area",
-        "Allowed file types / notes": tr ? "Dusuk sadakatli wireframe." : "Low-fidelity wireframe.",
-        "Consent / confirmation text": tr ? "Onay metni" : "Confirmation text"
+        "Meta Label 2": t("actor", lang),
+        "Meta Value 2": normalized.audience[0] ?? t("user", lang),
+        "Field Label": t("field", lang),
+        "Detailed Input Area": t("detailed_input_area", lang),
+        "Upload / Attachment Area": t("upload_area", lang),
+        "Allowed file types / notes": t("low_fidelity_wireframe", lang),
+        "Consent / confirmation text": t("confirmation_text", lang)
       },
       (token) => {
         const key = token.toLowerCase();
         if (key.includes("screen") || key.includes("title")) return title;
-        if (key.includes("action") || key.includes("button")) return tr ? "Kaydet" : "Save";
-        if (key.includes("field")) return tr ? "Alan" : "Field";
+        if (key.includes("action") || key.includes("button")) return t("save", lang);
+        if (key.includes("field")) return t("field", lang);
         if (key.includes("description") || key.includes("summary")) return `[${screen.id}] ${screen.text}`;
-        if (key.includes("actor") || key.includes("user")) return normalized.audience[0] ?? (tr ? "Kullanici" : "User");
+        if (key.includes("actor") || key.includes("user")) return normalized.audience[0] ?? t("user", lang);
         if (key.includes("logo")) return "[ LOGO ]";
         return token;
       }
@@ -778,14 +777,14 @@ async function writeWireframeScreens(
     await fs.writeFile(htmlPath, html, "utf8");
     const defaultMap = {
       purpose: [`- [${screen.id}] ${screen.text}`],
-      actor: [`- ${(normalized.audience[0] ?? (tr ? "Birincil kullanici" : "Primary user"))}`],
+      actor: [`- ${(normalized.audience[0] ?? t("primary_user", lang))}`],
       sections: [
-        `- ${tr ? "Baslik ve gezinme" : "Header and navigation"}`,
-        `- ${tr ? "Icerik bolumu" : "Content section"}`,
-        `- ${tr ? "Form bolumu" : "Form section"}`
+        `- ${t("header_and_navigation", lang)}`,
+        `- ${t("content_section", lang)}`,
+        `- ${t("form_section", lang)}`
       ],
-      fields: [`- ${tr ? "Metin alani (field_" : "Text input (field_"}${index + 1})`],
-      actions: [`- ${tr ? "Geri" : "Back"}`, `- ${tr ? "Devam" : "Next"}`, `- ${tr ? "Kaydet" : "Save"}`],
+      fields: [`- ${t("text_input", lang)} (field_${index + 1})`],
+      actions: [`- ${t("back", lang)}`, `- ${t("next", lang)}`, `- ${t("save", lang)}`],
       states: [`- ${tr ? "Bos durum, yukleniyor, hata, basari" : "Empty, loading, error, success states"}`],
       notes: [`- ${tr ? "Dusuk sadakatli tel kafes taslaktir." : "Low-fidelity black-and-white wireframe mock."}`]
     };

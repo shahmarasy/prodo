@@ -438,7 +438,7 @@ test("fix command regenerates failing workflow artifacts from validation report"
   const fixedMd2 = await fs.readFile(newestMdPath, "utf8");
   assert.match(fixedMd2, /\|\s*v1\.2\s*\|/i);
 
-  assert.match(logs.join("\n"), /Fix pipeline completed\. Validation passed\./);
+  assert.match(logs.join("\n"), /Fix complete/);
 });
 
 test("doctor command prints grouped environment report", async (t) => {

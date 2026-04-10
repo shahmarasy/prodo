@@ -1,7 +1,10 @@
 import path from "node:path";
 import { listArtifactTypes, getArtifactDefinition } from "./artifact-registry";
-import { contractIds, parseNormalizedBriefOrThrow } from "./normalized-brief";
+import { parseMarkdownSections, taggedLinesByContract } from "./markdown";
+import { contractIds, parseNormalizedBriefOrThrow, type NormalizedBrief } from "./normalized-brief";
 import { createProvider } from "../providers";
+import { buildTermMap, checkTermReconciliation } from "./terminology";
+import { buildTraceMap, checkRequirementCompleteness } from "./tracing";
 import type { ArtifactDoc, ArtifactType, ContractCoverage, ValidationIssue } from "./types";
 
 type LoadedArtifact = {
@@ -100,20 +103,7 @@ function checkUpstreamReferences(loaded: LoadedArtifact[]): ValidationIssue[] {
   return issues;
 }
 
-function taggedLinesByContract(body: string): Array<{ contractId: string; line: string }> {
-  const lines = body
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  const tagged: Array<{ contractId: string; line: string }> = [];
-  for (const line of lines) {
-    const matches = line.match(/\[([GFC][0-9]+)\]/g) ?? [];
-    for (const match of matches) {
-      tagged.push({ contractId: match.slice(1, -1), line });
-    }
-  }
-  return tagged;
-}
+// taggedLinesByContract is now imported from ./markdown
 
 function parseJsonObject<T>(raw: string, fallback: T): T {
   const trimmed = raw.trim();
@@ -286,6 +276,62 @@ async function checkSemanticPairs(loaded: LoadedArtifact[]): Promise<ValidationI
   return issues;
 }
 
+function checkCrossReferences(loadedArtifacts: LoadedArtifact[]): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const artifactTypeNames = new Set(loadedArtifacts.map((a) => a.type));
+
+  const sectionsByType = new Map<ArtifactType, Set<string>>();
+  for (const artifact of loadedArtifacts) {
+    const sections = parseMarkdownSections(artifact.doc.body);
+    const headingSet = new Set(sections.map((s) => s.headingKey));
+    sectionsByType.set(artifact.type, headingSet);
+  }
+
+  const crossRefPattern = /(?:see|refer to|as (?:defined|described|specified) in)\s+(prd|workflow|wireframe|stories|techspec)(?:\s+(?:section\s+)?[""]?([^"".,)\n]+)[""]?)?/gi;
+
+  for (const artifact of loadedArtifacts) {
+    const matches = artifact.doc.body.matchAll(crossRefPattern);
+    for (const match of matches) {
+      const refType = match[1].toLowerCase();
+      const refSection = match[2]?.trim();
+
+      if (!artifactTypeNames.has(refType)) {
+        issues.push({
+          level: "warning",
+          code: "broken_cross_reference",
+          check: "cross_reference",
+          artifactType: artifact.type,
+          file: artifact.file,
+          message: `Cross-reference to "${refType}" but that artifact does not exist.`,
+          suggestion: `Generate the ${refType} artifact or remove the cross-reference.`
+        });
+        continue;
+      }
+
+      if (refSection) {
+        const targetSections = sectionsByType.get(refType);
+        if (targetSections) {
+          const normalizedRef = refSection.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+          const found = [...targetSections].some((s) => s.includes(normalizedRef) || normalizedRef.includes(s));
+          if (!found) {
+            issues.push({
+              level: "warning",
+              code: "broken_cross_reference",
+              check: "cross_reference",
+              artifactType: artifact.type,
+              file: artifact.file,
+              message: `Cross-reference to "${refType} section ${refSection}" but that section was not found.`,
+              suggestion: `Verify the section name or update the cross-reference.`
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return issues;
+}
+
 export async function checkConsistency(
   cwd: string,
   loadedArtifacts: LoadedArtifact[],
@@ -297,7 +343,32 @@ export async function checkConsistency(
     ...checkUpstreamReferences(loadedArtifacts),
     ...checkLanguageConsistency(loadedArtifacts)
   ];
+
   const relevanceIssues = await checkContractRelevance(loadedArtifacts, normalizedBrief);
   const semanticIssues = await checkSemanticPairs(loadedArtifacts);
-  return [...baseIssues, ...relevanceIssues, ...semanticIssues];
+
+  const crossRefIssues = checkCrossReferences(loadedArtifacts);
+
+  let terminologyIssues: ValidationIssue[] = [];
+  let tracingIssues: ValidationIssue[] = [];
+  try {
+    const parsed = parseNormalizedBriefOrThrow(normalizedBrief);
+    const termMap = buildTermMap(parsed, loadedArtifacts);
+    terminologyIssues = checkTermReconciliation(termMap);
+
+    const traceMap = buildTraceMap(parsed, loadedArtifacts);
+    const presentTypes = loadedArtifacts.map((a) => a.type);
+    tracingIssues = checkRequirementCompleteness(traceMap, parsed, presentTypes);
+  } catch {
+    // normalized brief parse failed — skip terminology/tracing (other checks will catch it)
+  }
+
+  return [
+    ...baseIssues,
+    ...relevanceIssues,
+    ...semanticIssues,
+    ...crossRefIssues,
+    ...terminologyIssues,
+    ...tracingIssues
+  ];
 }

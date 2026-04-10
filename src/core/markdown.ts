@@ -61,6 +61,26 @@ export function extractRequiredHeadings(content: string): string[] {
     .filter((heading) => heading.length > 3);
 }
 
+export type TaggedLine = {
+  contractId: string;
+  line: string;
+};
+
+export function taggedLinesByContract(body: string): TaggedLine[] {
+  const lines = body
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  const tagged: TaggedLine[] = [];
+  for (const line of lines) {
+    const matches = line.match(/\[([GFC][0-9]+)\]/g) ?? [];
+    for (const match of matches) {
+      tagged.push({ contractId: match.slice(1, -1), line });
+    }
+  }
+  return tagged;
+}
+
 export function sectionTextMap(content: string): Map<string, string> {
   const sections = parseMarkdownSections(content);
   const mapped = new Map<string, string>();

@@ -4,15 +4,17 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { loadAgentCommandSet, resolveAgent } from "./agent-ids";
 import { resolveAi, type SupportedAi } from "./agent-command-installer";
-import { listArtifactDefinitions, listArtifactTypes } from "../core/artifact-registry";
+import { listArtifactTypes } from "../core/artifact-registry";
 import { generateArtifact } from "../core/artifacts";
 import { runDoctor } from "./doctor";
 import { UserError } from "../core/errors";
 import { runHookPhase } from "../core/hook-executor";
 import { runInit } from "./init";
 import { finishInitInteractive, gatherInitSelections } from "./init-tui";
+import { buildFixProposal, applyFix, runFix } from "../core/fix";
 import { runNormalize } from "../core/normalize";
 import { runInteractiveNormalize } from "./normalize-interactive";
+import { confirmFixExecution, displayFixProposal, displayFixResult } from "./fix-tui";
 import { briefPath } from "../core/paths";
 import { type ArtifactType } from "../core/types";
 import { fileExists } from "../core/utils";
@@ -213,47 +215,52 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
     .option("--agent <name>", "agent profile: codex | gemini-cli | claude-cli")
     .option("--strict", "treat validation warnings as errors")
     .option("--report <path>", "validation report output path")
-    .action(async (opts) => {
+    .option("--dry-run", "show fix proposal without applying changes")
+    .action(async (opts: { agent?: string; strict?: boolean; report?: string; dryRun?: boolean }) => {
       if (opts.agent) resolveAgent(opts.agent);
       await withBriefReadOnlyGuard(cwd, async () => {
-        await runHookPhase(cwd, "before_validate", out);
-        const initial = await runValidate(cwd, {
+        const fixOpts = {
+          cwd,
+          agent: opts.agent,
           strict: Boolean(opts.strict),
-          report: opts.report
-        });
-        out(`Validation report written to: ${initial.reportPath}`);
-        await runHookPhase(cwd, "after_validate", out);
+          report: opts.report,
+          dryRun: Boolean(opts.dryRun),
+          log: out
+        };
 
-        if (initial.pass) {
+        if (opts.dryRun) {
+          const result = await runFix(fixOpts);
+          out(`Validation report: ${result.reportPath}`);
+          if (result.proposal.targets.length > 0) {
+            await displayFixProposal(result.proposal, out);
+          }
+          return;
+        }
+
+        const proposal = await buildFixProposal(fixOpts);
+        out(`Validation report: ${proposal.initialReport.reportPath}`);
+
+        if (proposal.targets.length === 0) {
           out("No blocking issues found. Nothing to fix.");
           return;
         }
 
-        const targets = await resolveFixTargets(cwd, artifactTypes, initial.issues);
-        out(`Validation failed. Regenerating impacted artifacts: ${targets.join(", ")}`);
+        await displayFixProposal(proposal, out);
 
-        await runHookPhase(cwd, "before_normalize", out);
-        const normalizedPath = await runNormalize({ cwd });
-        out(`Normalized brief refreshed: ${normalizedPath}`);
-        await runHookPhase(cwd, "after_normalize", out);
-
-        for (const type of targets) {
-          await runArtifactCommand(type, { from: normalizedPath, agent: opts.agent, revisionType: "fix" }, cwd, out, {
-            suggestValidate: false
-          });
+        const confirmed = await confirmFixExecution(proposal);
+        if (!confirmed) {
+          out("Fix cancelled by user.");
+          return;
         }
 
-        await runHookPhase(cwd, "before_validate", out);
-        const final = await runValidate(cwd, {
-          strict: Boolean(opts.strict),
-          report: opts.report
-        });
-        out(`Validation report written to: ${final.reportPath}`);
-        if (!final.pass) {
+        out(`Regenerating impacted artifacts: ${proposal.targets.join(", ")}`);
+        const result = await applyFix(cwd, proposal, fixOpts);
+
+        await displayFixResult(result, out);
+
+        if (!result.finalPass) {
           throw new UserError("Fix completed but validation is still failing. Review report and retry.");
         }
-        out("Fix pipeline completed. Validation passed.");
-        await runHookPhase(cwd, "after_validate", out);
       });
     });
 
@@ -344,6 +351,42 @@ export async function runCli(options: RunOptions = {}): Promise<number> {
       });
     });
 
+  program
+    .command("skills", { hidden: true })
+    .description("Advanced: manage and run skills")
+    .argument("[action]", "list or run", "list")
+    .argument("[name]", "skill name (for run)")
+    .option("--input <json>", "JSON input for skill execution")
+    .action(async (action: string, name: string | undefined, opts: { input?: string }) => {
+      const { getGlobalSkillEngine } = await import("../skills/engine");
+      const engine = getGlobalSkillEngine();
+
+      if (action === "list") {
+        const manifests = engine.listSkills();
+        if (manifests.length === 0) {
+          out("No skills registered.");
+          return;
+        }
+        out("Available skills:\n");
+        for (const m of manifests) {
+          out(`  ${m.name.padEnd(25)} [${m.category}] ${m.description}`);
+        }
+        return;
+      }
+
+      if (action === "run") {
+        if (!name) throw new UserError("Skill name is required. Usage: prodo skills run <name>");
+        const inputs = opts.input ? JSON.parse(opts.input) as Record<string, unknown> : {};
+        inputs.cwd = inputs.cwd ?? cwd;
+        const result = await engine.execute(name, { cwd, log: out }, inputs);
+        out(`\nSkill "${name}" completed.`);
+        out(JSON.stringify(result, null, 2));
+        return;
+      }
+
+      throw new UserError(`Unknown skills action: "${action}". Use: list or run`);
+    });
+
   try {
     if (forced) {
       if (forced === "init") {
@@ -378,33 +421,3 @@ if (require.main === module) {
   });
 }
 
-async function resolveFixTargets(
-  cwd: string,
-  artifactTypes: ArtifactType[],
-  issues: Array<{ artifactType?: ArtifactType }>
-): Promise<ArtifactType[]> {
-  const direct = new Set<ArtifactType>(
-    issues
-      .map((issue) => issue.artifactType)
-      .filter(
-        (artifactType): artifactType is ArtifactType =>
-          typeof artifactType === "string" && artifactTypes.includes(artifactType)
-      )
-  );
-  if (direct.size === 0) return artifactTypes;
-
-  const defs = await listArtifactDefinitions(cwd);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const def of defs) {
-      const needsRefresh = def.upstream.some((upstream) => direct.has(upstream));
-      if (needsRefresh && !direct.has(def.name)) {
-        direct.add(def.name);
-        changed = true;
-      }
-    }
-  }
-
-  return artifactTypes.filter((artifactType) => direct.has(artifactType));
-}

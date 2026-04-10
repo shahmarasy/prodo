@@ -18,7 +18,7 @@ export type ContractCoverage = {
 export type ValidationIssue = {
   level: "error" | "warning";
   code: string;
-  check?: "schema" | "tag_coverage" | "semantic_consistency" | "contract_relevance";
+  check?: "schema" | "tag_coverage" | "semantic_consistency" | "contract_relevance" | "terminology" | "tracing" | "cross_reference";
   artifactType?: ArtifactType;
   file?: string;
   field?: string;

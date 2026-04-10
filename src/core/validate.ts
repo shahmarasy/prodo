@@ -105,10 +105,16 @@ async function writeReport(targetPath: string, issues: ValidationIssue[]): Promi
   await fs.writeFile(targetPath, content, "utf8");
 }
 
+export type ValidateResult = {
+  pass: boolean;
+  reportPath: string;
+  issues: ValidationIssue[];
+};
+
 export async function runValidate(
   cwd: string,
   options: { strict?: boolean; report?: string }
-): Promise<{ pass: boolean; reportPath: string; issues: ValidationIssue[] }> {
+): Promise<ValidateResult> {
   const normalizedPath = normalizedBriefPath(cwd);
   if (!(await fileExists(normalizedPath))) {
     throw new UserError("Missing `.prodo/briefs/normalized-brief.json`. Run `prodo-init` and create it first.");
